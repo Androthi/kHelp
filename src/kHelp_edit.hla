@@ -1,0 +1,299 @@
+unit kHelp_edit_unit;
+
+	#includeonce ("src\kHelp.hhf")
+
+	?@nodisplay := true;
+	?@noalignstack := true;
+
+	storage
+		hedit	:dword;
+		logfont	:w.LOGFONT;
+		hfont	:dword;
+		cf		:w.CHARFORMAT;
+		searchbuf	:char[256];
+	
+
+	readonly
+
+		default_font	:mzstr ("Courier New");
+
+
+	const
+		default_textcolor_c		:= 0;
+		
+	procedure edit_showline (line:uns32);
+	begin edit_showline;
+		w.SendMessage (hedit, w.EM_LINEINDEX, line, 0);
+		w.SendMessage (hedit, w.EM_SETSEL, eax, eax);
+		w.SendMessage (hedit, w.EM_SCROLLCARET, 0, 0);
+		w.SetFocus (hwnd);
+	end edit_showline;
+
+		
+	procedure edit_reset; @noframe;
+	begin edit_reset;
+		w.SendMessage (hedit, w.WM_SETTEXT, 0, 0);
+		ret();
+	end edit_reset;
+
+	procedure edit_findtopic (src:dword);
+		
+		// src = address of buffer
+		// find in view topic
+		
+		static
+//			chrg	:w.CHARRANGE;
+			ft		:w.FINDTEXTEX;
+			flags	:dword := w.FR_DOWN;
+			started	:boolean := false;
+			
+		
+	begin edit_findtopic;
+		//dbg.put ("findtopic :", src);
+		if (! started || src = 0) then
+			xor (eax, eax);
+			mov (eax, ft.chrg.cpMin);
+			mov (eax, ft.chrg.cpMax);
+			w.SendMessage (hedit, w.EM_EXSETSEL, 0, &ft.chrg);
+			dec (ft.chrg.cpMax);	// = -1
+			mov (true, started);		
+		endif;
+		exitif (src = 0) edit_findtopic;
+		
+		mov (src, eax); dbg.putz( eax );
+		mov (eax, ft.lpstrText);
+		w.SendMessage (hedit, w.EM_FINDTEXTEX, flags, &ft);
+		if (eax <> -1) then
+			w.SendMessage (hedit, w.EM_EXSETSEL, 0, &ft.chrgText);
+			w.SendMessage (hedit, w.EM_SCROLLCARET, 0, 0);
+			move (ft.chrgText.cpMax, ft.chrg.cpMin);
+			xor (eax, eax);
+		else
+			mov (false, started);
+			// pass -1 to return
+		endif;
+		//dbg.put("/edit_findtopic :", eax);
+	end edit_findtopic;
+
+	procedure edit_finddoc (src:dword);
+		
+		// src = address of buffer
+		// find in entire document
+		
+		static
+			curList		:pointer to sectionNode_t;
+			started		:boolean := false;
+			searching	:boolean := false;
+			
+		procedure isScanable (var ptr:sectionNode_t; find:dword); @returns("EAX");
+			var
+				sect	:tBuffer;
+				found	:dword;
+				
+		begin isScanable;
+			mov (false, found);
+			mov( find, eax );
+			//dbg.put ("isScanable");
+			str.cpyz (eax, strbuf);
+			
+			sect.create();
+			mov (ptr, eax); //dbg.put ("in ", seceax.sectionID);
+			helpfile.readSection ( (type sectionNode_t[eax]).sectionID, sect);
+			if( EAX ) then
+				sect.bof();
+				if (sect.isearchf (strbuf)) then
+					mov (ptr, eax);
+					content_select ( [eax] );
+					mov (true, found);
+				endif;
+			endif;
+			sect.destroy();
+			mov (found, eax);
+		end isScanable;
+
+		procedure nextList (var lst:sectionNode_t; find:dword);
+		begin nextList;
+		USE( EBX );
+			mov( lst, ebx ); dbg.put ("nextList :", secebx.sectionName); 
+			forever
+				if (ebx = 0) then
+					xor (eax, eax);
+					break;
+				endif;
+				
+				if (isScanable ([ebx], find) ) then
+					mov (ebx, eax);
+					break;
+				endif;
+				mov( secebx.next, ebx );
+			endfor;
+		ENDUSE;
+		dbg.put ("/nextList");
+		end nextList;
+
+			
+	begin edit_finddoc;
+
+		dbg.put ("edit_finddoc :", src);
+
+		if (! started || src = 0) then
+			edit_findtopic (0);	// reset
+			mov (true, started);
+			sList.getHead(); dbg.put ("head = ", eax);
+			mov (eax, curList);
+			if( src ) then
+				nextList ([eax], src); //dbg.put ("/nextList :", eax );
+				if (! eax) then
+					mov (0, src);
+					mov (false, started);
+					mov (false, searching);
+				else
+					mov (eax, curList);
+					mov (true, searching);
+				endif;
+			endif;
+		endif;
+		exitif (src = 0) edit_finddoc;
+		
+		findAgain:
+		if (searching) then
+			edit_findtopic (src);
+			if (eax = -1) then
+				mov (curList, eax); //dbg.put ("curlist = ", eax );
+				//if( eax ) then
+					mov ( (type sectionNode_t[eax]).next, eax);
+					mov (eax, curList);
+					nextList (curList, src);
+				//endif;
+				if (! eax) then
+					edit_finddoc (0);
+					mov( false, searching );
+					mov( false, started );
+					xor (eax, eax);
+				else
+					mov (eax, curList);
+					mov (true, searching);
+					jmp findAgain;
+				endif;
+			endif;
+		endif;
+		dbg.put ("/edit_finddoc :", eax);
+	end edit_finddoc;
+
+	procedure edit_resetfind (scope:dword);
+	begin edit_resetfind;
+		if (scope) then
+			edit_findtopic (0);
+		else
+			edit_finddoc (0);
+		endif;
+	end edit_resetfind;
+
+	procedure edit_linedown; @noframe;
+	begin edit_linedown;
+		w.SendMessage (hedit, w.EM_SCROLL, w.SB_LINEDOWN, 0);
+		ret(); 
+	end edit_linedown;
+
+	procedure edit_lineup; @noframe;
+	begin edit_lineup;
+		w.SendMessage (hedit, w.EM_SCROLL, w.SB_LINEUP, 0);
+		ret();
+	end edit_lineup;
+
+	procedure edit_pageup; @noframe;
+	begin edit_pageup;
+		w.SendMessage (hedit, w.EM_SCROLL, w.SB_PAGEUP, 0);
+		ret();
+	end edit_pageup;
+
+	procedure edit_pagedown; @noframe;
+	begin edit_pagedown;
+		w.SendMessage (hedit, w.EM_SCROLL, w.SB_PAGEDOWN, 0);
+		ret();
+	end edit_pagedown;
+
+	procedure edit_getfirstline; @noframe;
+	begin edit_getfirstline;
+		w.SendMessage (hedit, w.EM_GETFIRSTVISIBLELINE, 0, 0);
+		ret();
+	end edit_getfirstline;
+
+
+	procedure edit_setup; @noframe;
+	begin edit_setup;
+		w.CreateWindowEx (NULL, "RichEdit20A", NULL, 
+			w.WS_CHILD | w.WS_VSCROLL | w.ES_MULTILINE | w.WS_BORDER | w.ES_NOHIDESEL |
+			w.ES_SAVESEL | w.ES_READONLY,
+			0, 0, 0, 0, hwnd, NULL, hinst, NULL);
+		mov (eax, hedit);
+		
+		// read in saved logfont, if one exists.
+		if ( ! settings.readBin ("kHelp Settings", "font", &logfont, @size(logfont))) then
+
+			mov (&logfont, eax);
+			mov ((type byte[eax]),al);
+			if (!al) then
+				w.lstrcpy (logfont.lfFaceName, default_font);
+				mov	(-12,logfont.lfHeight);
+				mov	(400,logfont.lfWeight);
+			endif;
+	
+		endif;		
+		w.CreateFontIndirect (&logfont);
+		mov	(eax, hfont);
+		
+		w.SendMessage(hedit, w.EM_SETTEXTMODE, 0, w.TM_PLAINTEXT);
+		w.SendMessage(hedit, w.EM_EXLIMITTEXT,0,0);
+		mov	(@size(cf), cf.cbSize);
+		mov	(w.CFM_CHARSET | w.CFM_FACE | w.CFM_SIZE | w.CFM_COLOR, cf.dwMask);
+		mov	(logfont.lfCharSet, al);
+		mov	(al,cf.bCharSet);
+		mov	(logfont.lfPitchAndFamily, al);
+		mov	(al, cf.bPitchAndFamily);
+		w.lstrcpyn (cf.szFaceName, &logfont.lfFaceName, w.LF_FACESIZE);
+		mov	(logfont.lfHeight, eax);
+		neg	(eax);
+		mov	(15,ecx);
+		mul (ecx);
+		mov	(eax, cf.yHeight);
+		mov	( default_textcolor_c, cf.crTextColor);
+		w.SendMessage(hedit, w.EM_SETCHARFORMAT, w.SCF_ALL, &cf);
+		w.SendMessage(hedit, w.WM_SETFONT, hfont, true);
+		w.SendMessage(hedit, w.EM_SETMARGINS, w.EC_LEFTMARGIN, 8);
+		ret();
+	end edit_setup;
+
+	procedure edit_show (state:dword);
+	begin edit_show;
+		w.ShowWindow (hedit, state);
+	end edit_show;
+
+	procedure edit_draw (var rect:w.RECT);
+	begin edit_draw;
+		mov (rect, ecx);
+		mov ( (type w.RECT[ECX]).bottom, eax);
+		sub ( (type w.RECT[ECX]).top, eax);
+		mov ( (type w.RECT[ECX]).left, edx);
+		sub ( edx, (type w.RECT[ECX]).right);
+		w.MoveWindow (hedit, (type w.RECT[ECX]).left, (type w.RECT[ECX]).top,
+						(type w.RECT[ECX]).right, eax, true);
+		
+	end edit_draw;
+
+	procedure edit_settext (src:string);
+		readonly
+			szblank	:mzstr (nl);
+			
+	begin edit_settext;
+	USE (EAX);
+		w.SendMessage (hedit, w.WM_SETTEXT, 0, 0);
+		w.SendMessage (hedit, w.EM_REPLACESEL, 0, &szblank);
+		w.SendMessage (hedit, w.EM_REPLACESEL, 0, src);
+		w.SendMessage (hedit, w.EM_SETSEL, 0, 0);
+		w.SendMessage (hedit, w.EM_SCROLLCARET, 0, 0);
+	ENDUSE;
+	end edit_settext;
+
+
+end kHelp_edit_unit;

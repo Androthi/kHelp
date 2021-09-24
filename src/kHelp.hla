@@ -1,0 +1,1286 @@
+
+program kHelp;
+	
+	#include ("src\kHelp.hhf")
+	?@nodisplay := true;
+	
+	
+	type
+		// Message and dispatch table related definitions:
+			  
+		MsgProc_t:	procedure( hwnd:dword; wParam:dword; lParam:dword );
+		
+		MsgProcPtr_t:
+			record
+				MessageValue	:dword;
+				MessageHndlr	:MsgProc_t;
+			endrecord;
+	
+	static
+		align(4);
+		settingpath	:str.strvar (w.MAX_PATH);
+
+		khelpext	:string := ".khelp";
+		khelptype:byte; @nostorage;
+			byte "kHelp File (*.khelp)",0,"*.khelp",0,0;
+		align(4);
+		
+		textext	:string := ".txt";
+		texttype:byte; @nostorage;
+			byte "Text File (*.txt)", 0, "*.txt", 0;
+			byte "All Files (*.*)", 0, "*.*", 0, 0;
+		align(4);
+		
+	storage
+		
+		align(4); // Global
+		hinst			:dword;			// instance handle
+		hwnd			:dword;			// main window handle
+		haccel			:dword;			// accelerator handle
+		hrich			:dword;			// handle of richedit dll
+
+		// local
+		wc		:w.WNDCLASSEX;	// window class structure
+		msg		:w.MSG;			// message record
+		ofn		:w.OPENFILENAME;
+		
+		settings		:tConfig;
+		helpfile		:tConfig;
+		bmnotes		:tConfig;
+		pos			:WinPos;
+		strbuf			:string;
+		fullpathname		:string;
+		filename		:string;
+		jumpname		:string;
+		bmnotepath		:string;
+		buffer			:char[1024];
+		output		:tBuffer;
+	
+	const
+		as_text	:= 0;
+		as_rtf	:= 1;
+		as_htm	:= 2;
+		
+	
+	readonly	// message tables.  change this section to static if you wish to change pointers during run-time
+	
+	
+		ClassName	:string:="MAINCLASS";		// you may substitude your own name for "MAINCLASS"
+		AppName		:string:="kHelp";			// you may substitude your own name for "TEMPAPP"
+		
+	
+		// main window message table
+		
+		message_table	:MsgProcPtr_t; @nostorage;
+			MsgProcPtr_t	
+				MsgProcPtr_t:[ w.WM_COMMAND,	&Msg_Command		],
+				MsgProcPtr_t:[ w.WM_DESTROY,	&Msg_Destroy		],
+				MsgProcPtr_t:[ w.WM_CLOSE,		&Msg_Close		],
+				MsgProcPtr_t:[ w.WM_CREATE,		&Msg_Create		],
+				MsgProcPtr_t:[ w.WM_SIZE,		&Msg_Size		],
+				MsgProcPtr_t:[ w.WM_KEYDOWN,	&Msg_Key		],
+				MsgProcPtr_t:[ w.WM_SETFOCUS,	&Msg_Focus		],
+				
+				// add more messages here
+				MsgProcPtr_t:[ 0, NULL ];	// This marks the end of the list.
+	
+		// WM_COMMAND message table, wparam items go here
+		command_table	:MsgProcPtr_t; @nostorage;
+			MsgProcPtr_t
+				MsgProcPtr_t:[ IDM_FILE_QUIT,	&Cmd_File_Quit	],
+				MsgProcPtr_t:[ IDM_FILE_OPEN,	&Cmd_File_Open	],
+				MsgProcPtr_t:[ IDM_FILE_SAVEAS,	&Cmd_File_SaveAs],
+				MsgProcPtr_t:[ IDM_SCOPE_TOPIC,	&Cmd_Scope_Topic	],
+				MsgProcPtr_t:[ IDM_SCOPE_DOC,	&Cmd_Scope_Doc	],
+				MsgProcPtr_t:[ IDM_OPT_TOP,		&Cmd_Option_Top	],
+				MsgProcPtr_t:[ IDM_OPT_FONT,	&Cmd_Option_Font],
+				MsgProcPtr_t:[ IDM_BOOKMARKS_MANAGE,&Cmd_Bookmark_Manage],
+				MsgProcPtr_t:[ IDM_HELP_HELP,	&Cmd_Help_Help	],
+				MsgProcPtr_t:[ IDM_HELP_KEYS,	&Cmd_Help_Keys	],
+				MsgProcPtr_t:[ IDM_HELP_ABOUT,	&Cmd_Help_About	],
+				MsgProcPtr_t:[ ID_BTN_HOME,		&Cmd_Panel_Home	],
+				MsgProcPtr_t:[ ID_BTN_BACK,		&Cmd_Panel_Back	],
+				MsgProcPtr_t:[ ID_BTN_PREV,		&Cmd_Panel_Prev	],
+				MsgProcPtr_t:[ ID_BTN_NEXT,		&Cmd_Panel_Next	],
+				MsgProcPtr_t:[ ID_BTN_SEARCH,	&Cmd_Panel_Search	],
+				MsgProcPtr_t:[ ID_KEY_FIND,		&Cmd_Panel_Find	],
+				MsgProcPtr_t:[ ID_KEY_END,		&Cmd_Panel_End	],
+				MsgProcPtr_t:[ ID_KEY_DOWNLN,	&Cmd_Edit_DownLn	],
+				MsgProcPtr_t:[ ID_KEY_UPLN,		&Cmd_Edit_UpLn	],
+				MsgProcPtr_t:[ ID_KEY_PGDN,		&Cmd_Edit_PgDn	],
+				MsgProcPtr_t:[ ID_KEY_PGUP,		&Cmd_Edit_PgUp	],
+				MsgProcPtr_t:[ IDM_DOC_SAVEKHELP,	&Cmd_Doc_Savekhelp	],
+				MsgProcPtr_t:[ IDM_DOC_NEW,		&Cmd_Doc_New		],
+				MsgProcPtr_t:[ IDM_DOC_IMPORTKHELP,	&Cmd_Doc_Importkhelp],
+				MsgProcPtr_t:[ IDM_DOC_IMPORTTEXT,	&Cmd_Doc_ImportText],
+
+
+				//MsgProcPtr_t:[ IDM_HELP_TEST,	&Cmd_Test		],
+				
+				// add more commands here
+				MsgProcPtr_t:[ 0,			NULL			];
+			
+
+
+	procedure _error ( error_msg:string );	@nodisplay;
+	begin _error;
+	
+		w.MessageBox(NULL, error_msg, "fatalError", w.MB_OK | w.MB_ICONERROR );
+		
+		cmp(hwnd,0);
+		je _nowindow;
+		w.PostQuitMessage(0);
+		exit _error;
+		
+	_nowindow:
+		xor(eax,eax);
+	
+	end _error;
+	
+	procedure _warning( error_msg:string ); @nodisplay;
+	begin _warning;
+		w.MessageBox(NULL, error_msg, "Warning", w.MB_OK | w.MB_ICONERROR );
+		xor( eax, eax );
+	end _warning;
+
+	
+	procedure processCmdLine; @noframe;
+	begin processCmdLine;
+		dbg.enters ("processCmdLine");
+		arg.c();
+		mov (eax, ecx);
+		if (ecx > 3) then
+			fatalError ("Too many arguments on Command Line");
+		else
+			if (ecx > 1) then
+				arg.v (1);
+				str.cpy (eax, fullpathname);
+				dbg.put ("fullpathname = ", fullpathname);
+				
+				if (! filesys.exists (fullpathname)) then
+					str.put2 (fullpathname, ".khelp");
+				endif;
+				
+				if ( filesys.exists (fullpathname) ) then
+					helpfile.create ( fullpathname );
+					filesys.extractFilename( fullpathname, filename );
+					dbg.put ("filename = ", filename);
+
+				else
+					fatalError ("File Not Found :", fullpathname);
+				endif;				
+				
+			else
+				if ( filesys.exists ("khelpsrc")) then
+					str.cpy ("khelpsrc", fullpathname);
+					str.cpy ("khelpsrc", filename);
+					helpfile.create ( fullpathname );
+				else
+					str.cpy ("", fullpathname);
+					str.cpy ("", filename);
+				endif;
+			endif;
+			
+
+			if (ecx = 3) then
+				arg.v (2);
+				str.cpy (eax, jumpname);
+			else
+				str.cpy ("", jumpname);
+			endif;
+			
+			str.length (filename);
+			if (eax) then
+				
+				str.cpy (fullpathname, bmnotepath);
+				filesys.deleteExt( bmnotepath, bmnotepath );
+				str.put2 (bmnotepath, ".kinfo");
+				if (filesys.exists (bmnotepath)) then
+					bmnotes.create (bmnotepath);
+				else
+					bmnotes.create();
+				endif;
+				
+				content_load();
+				if( sList.findSectionName( jumpname ) ) then
+					content_select ( [eax] );
+				elseif (sList.getHead()) then
+					content_select ( [eax] );
+				endif;
+				
+				bookmarks_setup();
+
+			endif;
+
+		endif;
+		dbg.exits ("processCmdLine");
+		ret();
+	end processCmdLine;
+
+	/*
+	proc
+		Cmd_Test	:procedure( hwin:dword; wparam:dword; lparam:dword );
+			var
+				count	:uns32;
+				sbuf	:string;
+				outbuf	:tConfig;
+				obuf	:tBuffer;
+
+		begin Cmd_Test;
+			dbg.cls;
+			dbg.enters( "test" );
+	
+			
+			dbg.exits( "test" );
+		end Cmd_Test;
+	*/
+	
+	procedure Cmd_File_Quit ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_File_Quit;
+		w.SendMessage (hwin, w.WM_CLOSE, 0, 0 );
+	end Cmd_File_Quit;
+	
+	procedure Cmd_Panel_Home ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Panel_Home;
+		panel_home();
+	end Cmd_Panel_Home;
+
+	procedure Cmd_Panel_Back ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Panel_Back;
+		panel_back();
+	end Cmd_Panel_Back;
+
+	procedure Cmd_Panel_Prev ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Panel_Prev;
+		panel_prev();
+	end Cmd_Panel_Prev;
+
+	procedure Cmd_Panel_Next ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Panel_Next;
+		panel_next();
+	end Cmd_Panel_Next;
+
+	procedure Cmd_Panel_Search ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Panel_Search;
+		panel_search();
+	end Cmd_Panel_Search;
+
+
+	procedure Cmd_Panel_Find ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Panel_Find;
+		//dbg.put ("focus");
+		panel_findfocus(); //dbg.put ("/Cmd_Panel_Find");
+	end Cmd_Panel_Find;
+
+	procedure Cmd_Panel_End ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Panel_End;
+		panel_end();
+	end Cmd_Panel_End;
+
+	procedure Cmd_Edit_DownLn ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Edit_DownLn;
+		edit_linedown();
+	end Cmd_Edit_DownLn;
+
+	procedure Cmd_Edit_UpLn ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Edit_UpLn;
+		edit_lineup();
+	end Cmd_Edit_UpLn;
+
+	procedure Cmd_Edit_PgDn ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Edit_PgDn;
+		edit_pagedown();
+	end Cmd_Edit_PgDn;
+
+	procedure Cmd_Edit_PgUp ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Edit_PgUp;
+		edit_pageup();
+	end Cmd_Edit_PgUp;
+
+
+	proc
+		
+		document_savecopy	:procedure( fname:string );
+		
+			var
+				outfile	:tConfig;
+				input	:tBuffer;
+				sbuf	:string;
+				count	:uns32;
+		
+		begin document_savecopy;
+		
+			move( str.talloc( 1024 ), sbuf );
+			outfile.create();
+			input.create();
+			
+			helpfile.copyBufSection( "kHelp Header", input );
+			outfile.writeSection( "kHelp Header", input );
+			
+			helpfile.copyBufSection( "kHelp Contents", input );
+			outfile.writeSection( "kHelp Contents", input );
+			
+			helpfile.getItemCount("kHelp Contents");
+			mov( eax, count );
+			xor( ecx, ecx );
+			while( ecx < count ) do
+				helpfile.readItem ("kHelp Contents", ecx, strbuf);
+				getNodesIndex ( strbuf, sbuf );
+				if( ! outfile.isSectionDefined( sbuf ) ) then
+					
+					if( helpfile.copyBufSection( sbuf, input ) ) then
+						outfile.writeSection( sbuf, input );
+					endif;
+					
+				endif;
+
+				inc (ecx);
+
+			endwhile;
+
+			outfile.writeFileName( fname );
+			input.destroy();
+			outfile.destroy();
+
+			
+		end document_savecopy;
+
+		getOpenFilename	:procedure( hwin:dword; wparam:dword; lparam:dword );
+		begin getOpenFilename;
+			pushabi;
+			mov( 0, buffer[0] );
+			mov( @size(ofn), ofn.lStructSize );
+			mov( hwnd, ofn.hWndOwner );
+			mov( hinst, ofn.hInstance );
+			mov( @size(buffer), ofn.nMaxFile );
+			mov( &buffer, eax );
+			mov( eax, ofn.lpstrFile );
+			
+			w.GetOpenFileName( ofn );
+
+			popabi;
+		end getOpenFilename;
+
+
+		getSaveFilename	:procedure( hwin:dword; wparam:dword; lparam:dword );
+		begin getSaveFilename;
+			
+			pushabi;
+			mov( 0, buffer );
+			mov( @size(ofn), ofn.lStructSize );
+			mov( hwnd, ofn.hWndOwner );
+			mov( hinst, ofn.hInstance );
+			mov( @size(buffer), ofn.nMaxFile );
+			mov( &buffer, eax );
+			mov( eax, ofn.lpstrFile );
+				
+			w.GetSaveFileName( ofn );
+
+			popabi;
+		end getSaveFilename;		
+	
+	
+		Cmd_Doc_Savekhelp	:procedure( hwin:dword; wparam:dword; lparam:dword );
+		
+			var
+				s	:string;
+				
+		begin Cmd_Doc_Savekhelp;
+	
+			mov (str.talloc (256), s);
+			pushabi;
+			mov (&helpfile, eax);
+			if ( (type dword [eax]) <> 0) then
+			
+				mem2.fillMem( &ofn, @size(ofn), 0 );
+				mov( &khelpext, ofn.lpstrDefExt );
+				mov( &khelptype, ofn.lpstrFilter );
+				mov	(w.OFN_PATHMUSTEXIST | w.OFN_OVERWRITEPROMPT| w.OFN_LONGNAMES, ofn.Flags);
+				getSaveFilename( hwin, wparam, lparam ); 
+				if (eax) then
+					str.cpyz (&buffer, s);
+					document_savecopy( s );
+				endif;
+				
+			endif;
+			popabi;
+			
+		end Cmd_Doc_Savekhelp;
+
+		Cmd_Doc_New	:procedure( hwin:dword; wparam:dword; lparam:dword );
+		begin Cmd_Doc_New;
+	
+			pushabi;
+			
+			mem2.fillMem( &ofn, @size(ofn), 0 );
+			mov( &khelpext, ofn.lpstrDefExt );
+			mov( &khelptype, ofn.lpstrFilter );
+			mov( w.OFN_PATHMUSTEXIST | w.OFN_OVERWRITEPROMPT| w.OFN_LONGNAMES, ofn.Flags );
+			getSaveFilename ( hwin, wparam, lparam );
+			if (eax) then
+				str.cpyz (&buffer, fullpathname);
+				filesys.extractFilename( fullpathname, filename );
+				filesys.deleteExt( fullpathname, bmnotepath );
+				str.put2 (bmnotepath, ".kinfo");
+				if (filesys.exists (bmnotepath)) then
+					bmnotes.create (bmnotepath);
+				else
+					bmnotes.create();
+				endif;
+				
+				mov (&helpfile, eax);
+				if ( (type dword [eax]) <> 0) then
+					helpfile.destroy();
+					mov (0, (type dword helpfile[0]));
+				endif;
+				
+				str.cpy ("", jumpname);
+
+				helpfile.create();
+				helpfile.writeSection( "kHelp Header", "" );
+				helpfile.writeSection( "kHelp Contents", "" );
+				helpfile.writeFileName( fullpathname );
+
+				content_reset();
+				panel_reset();
+				edit_reset();
+				
+				content_load();
+				if (sList.getHead()) then
+					content_select ( [eax] );
+				endif;
+				bookmarks_setup();
+				w.SetFocus (hwnd);
+
+			endif;
+			
+			popabi;
+	
+		end Cmd_Doc_New;
+
+		Cmd_Doc_Importkhelp	:procedure( hwin:dword; wparam:dword; lparam:dword );
+		
+			var
+				import	:tConfig;
+				buf		:tBuffer;
+				s		:string;
+				count	:uns32;
+				
+		
+		begin Cmd_Doc_Importkhelp;	
+			
+			move( str.talloc( 1024 ), s );
+			//dbg.enters(" Cmd_Doc_Importkhelp" );
+			pushabi;
+			
+			mem2.fillMem( &ofn, @size(ofn), 0 );
+			mov( &khelpext, ofn.lpstrDefExt );
+			mov( &khelptype, ofn.lpstrFilter );
+			mov( w.OFN_PATHMUSTEXIST | w.OFN_FILEMUSTEXIST | w.OFN_LONGNAMES, ofn.Flags );
+			
+			getOpenFilename ( hwin, wparam, lparam );
+			if (eax) then
+				str.cpyz( &buffer, jumpname);
+				
+				import.create( jumpname );
+				buf.create();
+				
+				filesys.extractFilename( jumpname, strbuf );
+				helpfile.insertItem( "kHelp Contents", -1, strbuf );
+				
+				import.copyBufSection( "kHelp Header", buf );
+				helpfile.writeSection( strbuf, buf );
+				
+				import.getItemCount( "kHelp Contents" );
+				mov( eax, count );
+				xor( ecx, ecx );
+				while( ecx < count ) do
+					import.readItem ("kHelp Contents", ecx, strbuf );
+					str.put( s, '.', strbuf );
+					helpfile.insertItem( "kHelp Contents", -1, s );
+					inc( ecx );
+				endwhile;
+				
+				xor( ecx, ecx );
+				while( ecx < count ) do
+					import.readItem ("kHelp Contents", ecx, strbuf);
+
+					getNodesIndex ( strbuf, s );
+					
+					if(  import.isSectionDefined( s ) ) then
+
+						import.copyBufSection( s, buf );
+						helpfile.writeSection( s, buf );
+
+					endif;
+	
+					inc (ecx);
+	
+				endwhile;
+				
+				// save and reset the file
+				helpfile.writeFileName( fullpathname );
+
+				buf.destroy();
+				import.destroy();
+				content_reset();
+				panel_reset();
+				edit_reset();
+				
+				content_load();
+				if (sList.getHead()) then
+					content_select ( [eax] );
+				endif;
+				bookmarks_setup();
+
+			endif;
+			
+			//dbg.exits(" Cmd_Doc_Importkhelp" );
+			popabi;
+		end Cmd_Doc_Importkhelp;
+
+		Cmd_Doc_ImportText	:procedure( hwin:dword; wparam:dword; lparam:dword );
+		
+			var
+				buf	:tBuffer;
+				
+		
+		begin Cmd_Doc_ImportText;
+			pushabi;
+			
+			mem2.fillMem( &ofn, @size(ofn), 0 );
+			mov( &textext, ofn.lpstrDefExt );
+			mov( &texttype, ofn.lpstrFilter );
+			mov( w.OFN_PATHMUSTEXIST | w.OFN_FILEMUSTEXIST | w.OFN_LONGNAMES, ofn.Flags );
+			
+			getOpenFilename ( hwin, wparam, lparam );
+			if (eax) then
+		
+				str.cpyz( &buffer, jumpname);
+				buf.create( jumpname );
+				
+				filesys.extractFilename( jumpname, strbuf );
+				helpfile.insertItem( "kHelp Contents", -1, strbuf );
+				
+				buf.bof();
+				buf.puts( "<text>" nl );
+				buf.eof();
+				buf.puts( nl "</text>" nl );
+				
+				helpfile.writeSection( strbuf, buf );
+				
+				
+				// save and reset the file
+				helpfile.writeFileName( fullpathname );
+
+				buf.destroy();
+				content_reset();
+				panel_reset();
+				edit_reset();
+				
+				content_load();
+				if (sList.getHead()) then
+					content_select ( [eax] );
+				endif;
+				bookmarks_setup();
+
+			endif;
+			popabi;
+		end Cmd_Doc_ImportText;
+
+
+	procedure Cmd_File_Open ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_File_Open;
+	
+		pushabi;
+		content_reset();
+		panel_reset();
+		edit_reset();
+	
+		mov (&helpfile, eax);
+		if ( (type dword [eax]) <> 0) then
+			helpfile.destroy();
+			mov (0, (type dword helpfile[0]));
+		endif;
+		
+		mem2.fillMem( &ofn, @size(ofn), 0 );
+		mov( &khelpext, ofn.lpstrDefExt );
+		mov( &khelptype, ofn.lpstrFilter );
+		mov( w.OFN_PATHMUSTEXIST | w.OFN_FILEMUSTEXIST | w.OFN_LONGNAMES, ofn.Flags );
+		
+		getOpenFilename ( hwin, wparam, lparam );
+		if (eax) then
+			str.cpyz (&buffer, fullpathname);
+			filesys.extractFilename( fullpathname, filename );
+			filesys.deleteExt( fullpathname, bmnotepath );
+			str.put2 (bmnotepath, ".kinfo");
+			if (filesys.exists (bmnotepath)) then
+				bmnotes.create (bmnotepath);
+			else
+				bmnotes.create();
+			endif;
+			
+			helpfile.create (fullpathname);
+			content_load();
+			if (sList.getHead()) then
+				content_select ( [eax] );
+			endif;
+			bookmarks_setup();
+		else
+			panel_update();
+		endif;
+		str.cpy ("", jumpname);
+		
+		w.SetFocus (hwnd);
+		popabi;
+		
+	end Cmd_File_Open;
+
+	procedure saveAs ( style:dword );
+	
+		var
+			input	:tBuffer;
+			outfile	:tConfig;
+	
+		const
+			bufeax	:text	:= "(type tBuffer[eax])";
+
+			
+	begin saveAs;
+		dbg.put("saveAs");
+	
+		input.create();
+		
+		sList.getHead();
+		mov( eax, ebx );
+		cmp( ebx, 0 );
+		je done;
+		
+		dbg.put("root" );
+		// write root
+		helpfile.readSection( secebx.sectionID, input );
+		mov( secebx.next, ebx );
+		if( style = as_rtf ) then
+			
+			// setup rtf profile
+			output.append( "{\rtf1\ansi\deff0{\fonttbl{\f0\fnil\fcharset0 Courier New;}}" nl
+						"\viewkind4\ucl\pard\lang1033");
+			call writeSection;
+		
+		elseif( style = as_htm ) then
+			
+			// setup htm profile
+			output.append( "<HTML>");
+			call writeSection;
+		
+		else
+			// default, text
+			output.append( secebx.sectionName, ':', nl, input, nl nl);	
+		
+		endif;
+		
+		dbg.put("contents");
+		// write contents
+		helpfile.readSection( "kHelp Contents", input );
+		
+		if( style = as_rtf ) then
+			output.append( "\b\fs28 Contents: \b0\fs20\par" nl );
+			call write_rtf;
+		elseif ( style = as_htm) then
+			output.append( "<B><BIG>Contents:</BIG></B>" nl );
+			call write_htm;
+		else
+			// default text
+			output.append( "Contents:", nl, input, nl nl ); 
+		endif;
+		
+		dbg.put("sections");
+		while( ebx ) do
+			helpfile.readSection( secebx.sectionID, input );
+			call writeSection;
+			mov( secebx.next, ebx );			
+		endwhile;
+		
+		// rtf needs to be zero terminated
+		if( style = as_rtf ) then
+			output.insertByte(0);
+		elseif( style = as_htm ) then
+			output.append( "</BODY></HTML>" nl);
+		endif;
+
+		done:
+		input.destroy();
+		dbg.put("/saveAs");
+		exit saveAs;
+		
+		writeSection:
+			mov( style, eax );
+			switch( eax );
+			case( as_rtf )
+				output.append( "\b\fs28 ", secebx.sectionName, ":\b0\fs20\par" nl );
+				write_rtf:
+
+				// rtf doesn't like nakid '{' and '}' and '\' characters.
+				// replace them with \{, \} and \\
+				// do the \ first, otherwise we get a mess
+				
+				input.bof();
+				forever
+					breakif( ! input.searchf( "\" ) );
+					input.moveTo( eax );
+					input.putByte( '\' );
+					input.right( 1 );
+				endfor;
+				
+				input.bof();
+				forever
+					breakif( ! input.searchf( "{" ) );
+					input.moveTo( eax );
+					input.putByte( '\' );
+					input.right( 1 );
+				endfor;
+				
+				input.bof();
+				forever
+					breakif( ! input.searchf( "}" ) );
+					input.moveTo( eax );
+					input.putByte( '\' );
+					input.right( 1 );
+				endfor;
+
+				input.bof();				
+				//dbg.put("write_input");
+
+				forever
+					if( input.reads( strbuf ) ) then
+						//dbg.put(">", strbuf );
+						output.append( strbuf, "\par" nl );
+					else
+						break;
+					endif;
+				endfor;
+				
+				output.append( "\par" nl );
+				
+			case( as_htm )
+				
+				output.append( "<B><BIG>", secebx.sectionName, "</BIG></B><P>" nl );
+				write_htm:
+				input.bof();
+				forever
+					if( input.reads( strbuf )) then
+						output.append( strbuf, "<P>" nl );
+					else
+						break;
+					endif;
+				endfor;
+			
+			default
+				// default condition as text
+				output.append( secebx.sectionName, ':', nl, input, nl nl);
+
+			endswitch;
+		ret;
+		
+	end saveAs;
+
+
+	procedure Cmd_File_SaveAs ( hwin:dword; wparam:dword; lparam:dword );
+		var
+			
+			s		:string;
+			s2		:string;
+			
+		static
+			defext	:string := ".txt";
+			filetype:byte; @nostorage;
+				byte "Text File (*.txt)",0,"*.txt",0;
+				byte "RTF File (*.rtf)",0,"*.rtf",0;
+				byte "HTM File (*.htm)",0,"*.htm",0,0;
+	
+	begin Cmd_File_SaveAs;
+		mov (str.talloc (256), s);
+		pushabi;
+		mov (&helpfile, eax);
+		if ( (type dword [eax]) <> 0) then
+			mem2.fillMem( &ofn, @size(ofn), 0 );
+			mov( defext, ofn.lpstrDefExt );
+			mov( &filetype, ofn.lpstrFilter );
+			mov	(w.OFN_PATHMUSTEXIST | w.OFN_OVERWRITEPROMPT| w.OFN_LONGNAMES, ofn.Flags);
+			getSaveFilename( hwin, wparam, lparam ); 
+			if (eax) then
+				str.cpyz (&buffer, s);
+				output.create();
+				filesys.extractExt( s, strbuf );
+				if( str.ieq( strbuf, "rtf" ) ) then
+				//if( func.isFileExtension( s, "rtf" ) ) then
+					saveAs( as_rtf );
+				//elseif( func.isFileExtension( s, "htm" )) then
+				elseif( str.ieq( strbuf, "htm" ) ) then
+					saveAs( as_htm );
+				else
+					// default is text
+					saveAs( as_text );
+				endif;
+				output.writeFileName( s );
+				output.destroy();
+			endif;
+		endif;
+		popabi;
+	end Cmd_File_SaveAs;
+
+
+	procedure Cmd_Scope_Topic( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Scope_Topic;
+	USE (EBX);
+		w.GetMenu (hwnd);
+		mov (eax, ebx);
+		w.CheckMenuItem(ebx,IDM_SCOPE_TOPIC ,(w.MF_BYCOMMAND | w.MF_CHECKED));
+		w.CheckMenuItem(ebx,IDM_SCOPE_DOC ,(w.MF_BYCOMMAND | w.MF_UNCHECKED));
+		panel_setsearchmode();
+		settings.writeString ("kHelp Settings", "Scope", "topic");
+	ENDUSE;
+	end Cmd_Scope_Topic;
+
+	procedure Cmd_Scope_Doc ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Scope_Doc;
+	USE (EBX);
+		w.GetMenu (hwnd);
+		mov (eax, ebx);
+		w.CheckMenuItem( ebx,IDM_SCOPE_TOPIC ,(w.MF_BYCOMMAND | w.MF_UNCHECKED));
+		w.CheckMenuItem( ebx,IDM_SCOPE_DOC ,(w.MF_BYCOMMAND | w.MF_CHECKED));
+		panel_setsearchmode();
+		settings.writeString ("kHelp Settings", "Scope", "doc");
+	ENDUSE;
+	end Cmd_Scope_Doc;
+
+	procedure Cmd_Option_Top( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Option_Top;
+		settings.readInt ("kHelp Settings", "top");
+		if (eax) then
+			settings.writeInt ("kHelp Settings", "top", 0);
+			w.GetMenu (hwin);
+			w.CheckMenuItem (eax, IDM_OPT_TOP, w.MF_BYCOMMAND | w.MF_UNCHECKED);
+			w.SetWindowPos(hwnd,w.HWND_NOTOPMOST,0,0,0,0,3);
+			
+		else
+			settings.writeInt ("kHelp Settings", "top", 1);
+			w.GetMenu (hwin);
+			w.CheckMenuItem (eax, IDM_OPT_TOP, w.MF_BYCOMMAND | w.MF_CHECKED);
+			w.SetWindowPos (hwin,w.HWND_TOPMOST,0,0,0,0,3);
+
+		endif;
+	end Cmd_Option_Top;
+
+proc
+	
+	Cmd_Option_Font	:procedure( hwin:dword; wparam:dword; lparam:dword );
+	
+		var
+			cfont	:w.CHOOSEFONT;
+			
+	
+	begin Cmd_Option_Font;
+		
+		lea( eax, cfont );
+		mem2.fillMem ([eax], @size(w.CHOOSEFONT), 0);
+		mov( @size(cfont), cfont.lStructSize);
+		mov( hwin, eax );
+		mov( eax, cfont.hWndOwner );
+		mov( &logfont, cfont.lpLogFont );
+		mov( w.CF_SCREENFONTS | w.CF_EFFECTS | w.CF_INITTOLOGFONTSTRUCT, cfont.Flags );
+		
+		if( w._ChooseFont(cfont) ) then
+		
+			w.DeleteObject( hfont );
+			w.CreateFontIndirect( logfont );
+			mov( eax, hfont );
+			w.SendMessage( hedit, w.WM_SETFONT, hfont, true );
+			settings.writeBin ("kHelp Settings", "font", &logfont, @size(logfont));
+		endif;
+		
+	end Cmd_Option_Font;
+
+
+	procedure Cmd_Help_Help ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Help_Help;
+ 				
+ 		if ( filesys.exists ("kHelp_doc.khelp")) then	
+			os2.sysexec( "kHelp kHelp_doc" );
+			
+		else
+			// look in kHelp home location
+			os2.getmodulepath( strbuf );
+			filesys.a_extractPath( strbuf );
+			mov( eax, ecx );
+			str.put( strbuf, "kHelp ", (type string ecx), "\kHelp_doc" ); 
+			str.free( ecx );
+			os2.sysexec( strbuf );
+		endif;
+	end Cmd_Help_Help;
+	
+	procedure Cmd_Help_Keys ( hwin:dword; wparam:dword; lparam:dword );
+	
+		readonly
+			keyset: byte; @nostorage;
+				byte "Keyboard Shortcuts", 10, 10;
+				byte "  Home            jump to 1st topic", 10;
+				byte "  End             jump to last topic", 10;
+				byte "  Backspace       jump to previous topic", 10;
+				byte "  Page Up         jump to previous topic in tree", 10;
+				byte "  Page Down       jump to next topic in tree", 10;
+				byte "  Insert          activate search edit box", 10;
+				byte "  Enter           search next", 10;
+				byte "  Left Arrow      page up in current topic", 10;
+				byte "  Right Arrow     page down in current topic", 10;
+				byte "  Down Arrow      1 line down in current topic", 10;
+				byte "  Up Arrow        1 line up in current topic", 10;
+				byte "  Space           open notes window", 10;
+				byte "  B               bookmark current topic", 10, 0;
+				
+	begin Cmd_Help_Keys;
+		
+		edit_settext ( &keyset );
+		
+	end Cmd_Help_Keys;
+
+
+	procedure Cmd_Bookmark_Manage ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Bookmark_Manage;
+		bookmarks_show();
+	end Cmd_Bookmark_Manage;
+
+	procedure Cmd_Help_About ( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Help_About;
+		about_show();
+	end Cmd_Help_About;
+
+
+	procedure Msg_Create ( hwin:dword; wparam:dword; lparam:dword );
+	@nodisplay;
+		var
+			rect	:w.RECT;
+			
+	begin Msg_Create;
+		pushabi;
+		dbg.cls;
+		mov(hwin, eax);
+		mov(eax, hwnd);
+
+		str.alloc (4096);
+		mov (eax, strbuf);
+		str.alloc (w.MAX_PATH);
+		mov (eax, fullpathname);
+		str.alloc (w.MAX_PATH);
+		mov (eax, filename);
+		str.alloc (w.MAX_PATH);
+		mov (eax, bmnotepath);
+		str.alloc (1024);
+		mov (eax, jumpname);
+
+		
+		// window creation initialization goes here
+		if (filesys.exists (settingpath)) then
+			settings.create (settingpath);
+		else
+			settings.create();
+		endif;
+		
+		if ( settings.readBin ("kHelp Settings", "WinPos", &pos, @size(pos))) then
+			w.MoveWindow (hwin, pos.x, pos.y, pos.wt, pos.ht, true);
+		endif;
+		
+		if (! w.LoadLibrary ("riched20.dll")) then
+			jmp done;
+		endif;
+		mov (eax, hrich);
+		
+		w.GetMenu (hwnd);
+		mov (eax, ebx);
+		w.CheckMenuItem (ebx,IDM_SCOPE_TOPIC ,(w.MF_BYCOMMAND | w.MF_CHECKED));
+
+		if (settings.readString ("kHelp Settings", "Scope", strbuf)) then
+			dbg.put ("equality...");
+			if (str.eq (strbuf, "doc")) then
+				w.CheckMenuItem (ebx,IDM_SCOPE_DOC ,(w.MF_BYCOMMAND | w.MF_CHECKED));
+				w.CheckMenuItem (ebx,IDM_SCOPE_TOPIC ,(w.MF_BYCOMMAND | w.MF_UNCHECKED));
+			endif;
+		endif;
+		
+		settings.readInt ("kHelp Settings", "top");
+		if (eax) then
+			w.GetMenu (hwin);
+			w.CheckMenuItem (eax, IDM_OPT_TOP, w.MF_BYCOMMAND | w.MF_CHECKED);
+			w.SetWindowPos(hwnd,w.HWND_TOPMOST,0,0,0,0,3);
+		endif;
+		
+		
+		status_setup();
+		panel_setup();
+		content_setup();
+		bar_setup();
+		edit_setup();
+		notes_setup();
+	
+		
+		panel_show (w.SW_SHOW);
+		content_show (w.SW_SHOW);
+		bar_show (w.SW_SHOW);
+		status_show (w.SW_SHOW);
+		edit_show (w.SW_SHOW);
+		
+		
+		str.put (strbuf, AppName, " ", version);
+		w.SetWindowText (hwnd, strbuf); 
+		w.SendMessage (hwnd, w.WM_SIZE, 0, 0);
+		
+		processCmdLine();
+		
+		
+		done:
+		dbg.put ("\create");
+		popabi;
+	end Msg_Create;
+	
+		 
+	procedure Msg_Close ( hwin:dword; wparam:dword; lparam:dword );
+	@nodisplay;
+	begin Msg_Close;
+	
+		 	// user selects close button
+		 	w.SendMessage(hwin, w.WM_DESTROY, 0, 0 );
+	
+	end Msg_Close;
+	
+	
+	procedure Msg_Destroy ( hwin:dword; wparam:dword; lparam:dword );
+	@nodisplay;
+		var
+			rect	:w.RECT;
+			
+	begin Msg_Destroy;
+		pushabi;
+		w.GetWindowRect (hwin, rect);
+		move (rect.left, pos.x);
+		move (rect.top, pos.y);
+		mov (rect.right, eax);
+		sub (rect.left, eax);
+		mov (eax, pos.wt);
+		mov (rect.bottom,eax);
+		sub (rect.top,eax);
+		mov (eax, pos.ht);
+
+		settings.writeBin ("kHelp Settings", "WinPos", &pos, @size(pos));
+		bar_savepos();
+		
+		settings.write (settingpath);
+		w.FreeLibrary (hrich);
+		w.PostQuitMessage( NULL );
+		popabi;
+	end Msg_Destroy;
+	
+	procedure Msg_Key ( hwin:dword; wparam:dword; lparam:dword );
+
+//		procedure ScancodeToAscii(scancode:dword);
+//			
+//				// 		covert scan code to ascii
+//				// 		result of ascii code in register BL
+//				//	added by: Bernd Kastenholz
+//			
+//			var 
+//				KeyState:byte[256];
+//				CharBuf:byte;
+//			begin	ScancodeToAscii;
+//					
+//			USE(eax);
+//				w.GetKeyboardState(KeyState);	
+//				lea(eax, KeyState);
+//				lea(ebx, CharBuf);
+//				w.ToAscii(scancode, scancode, [eax], [ebx], 0);
+//				mov(CharBuf, bl);
+//			ENDUSE;
+//			end ScancodeToAscii;
+
+	begin Msg_Key;
+		dbg.put ("Key Down");
+		if (wparam = w.VK_SPACE) then
+			notes_show();
+		elseif( wparam = w.VK_B ) then
+			bookmarks_add();
+			w.SetFocus (hwnd);
+		endif;
+	end Msg_Key;
+
+	procedure Msg_Focus ( hwin:dword; wparam:dword; lparam:dword );
+	begin Msg_Focus;
+		w.SetFocus (hwnd);
+	end Msg_Focus;
+
+	
+	procedure Msg_Size ( hwin:dword; wparam:dword; lparam:dword );
+	@nodisplay;
+		var
+			rect	:w.RECT;
+			
+	begin Msg_Size;
+		pushabi;
+		w.GetClientRect (hwin, rect);
+		if (rect.right >= minX_c && rect.bottom >= minY_c ) then
+			
+			status_draw (rect);
+			panel_draw (rect);
+			bar_draw (rect);
+			content_draw (rect);
+			edit_draw (rect);
+			
+		endif;
+		popabi;
+	end Msg_Size;
+	
+	
+	procedure Msg_Command ( hwin:dword; wparam:dword; lparam:dword );
+	@nodisplay;
+	begin Msg_Command;
+	
+		mov(wparam,ecx);
+		mov(ecx,edx);
+		movzx(cx,ecx);
+		shr(16,edx);
+		
+		IF ( edx = w.BN_CLICKED || edx = 1 ) THEN
+		
+			// control or accelerator
+	
+			mov(&command_table,edx);
+			mov(ecx,eax);
+			IF (ecx < bookmarks_menu_start_c) THEN
+				FOREVER
+					mov( (type MsgProcPtr_t [edx]).MessageHndlr, ecx );
+					IF ( ecx = 0 ) THEN
+						BREAK;
+						
+					ELSEIF ( eax = (type MsgProcPtr_t [edx]).MessageValue ) THEN
+			
+						push( hwin );
+						push( wparam );
+						push( lparam );
+						call( ecx );
+						sub(eax,eax);
+						BREAK;
+					ENDIF;
+					add( @size( MsgProcPtr_t ), edx );
+				ENDFOR;
+			ELSE
+				bookmarks_menu (ecx);
+			ENDIF;
+		ENDIF;
+	
+	end Msg_Command;
+	
+	
+	procedure WndProc ( lparam:dword; wparam:dword; umsg:uns32; hwin:dword );	@nodisplay;
+	// main window message handler
+	
+	begin WndProc;
+	
+		mov(umsg,eax);
+		mov(&message_table,edx);
+		
+		FOREVER
+			mov( (type MsgProcPtr_t [edx]).MessageHndlr, ecx );
+			IF( ecx = 0 ) THEN
+				w.DefWindowProc( hwin, umsg, wparam, lparam );
+				EXIT WndProc;
+			ELSEIF( eax = (type MsgProcPtr_t [edx]).MessageValue ) THEN
+	
+				push( hwin );
+				push( wparam );
+				push( lparam );
+				call( ecx );
+				sub(eax,eax);
+				BREAK;
+			ENDIF;
+			add( @size( MsgProcPtr_t ), edx );
+		ENDFOR;
+	
+	end WndProc;
+	
+	
+	begin kHelp;
+	
+		w.InitCommonControls();
+		w.GetModuleHandle( NULL );
+		mov( eax, hinst );
+		
+		os2.getmodulepath (settingpath);
+		filesys.extractPath( settingpath, settingpath );
+		str.put2 (settingpath, "\kHelp.ini");
+		
+		// main window created here
+		// describe and register the window class
+		mov( @size(w.WNDCLASSEX), wc.cbSize );
+		mov( w.CS_HREDRAW | w.CS_VREDRAW, wc.style );
+		mov( &WndProc, wc.lpfnWndProc );
+		mov( NULL, wc.cbClsExtra );
+		mov( NULL, wc.cbWndExtra );
+		mov( hinst, wc.hInstance );
+		mov( w.COLOR_BTNFACE+1, wc.hbrBackground );
+		mov( IDR_MENU, wc.lpszMenuName );
+		mov( ClassName, wc.lpszClassName );
+
+		w.LoadIcon( hinst, val ID_JACKAL );
+		mov( eax, wc.hIcon );
+		mov( eax, wc.hIconSm );
+		w.LoadCursor( NULL, val w.IDC_ARROW );
+		mov( eax,wc.hCursor );
+		w.RegisterClassEx( wc );
+		or(eax,eax);
+		jnz _registerok;
+		fatalError( "Unable to register window class");
+		exit kHelp;
+		
+	_registerok:
+		w.CreateWindowEx(
+				NULL,					// dwExStyle
+				ClassName,				// lpClassName
+				AppName,				// lpWindowName
+				w.WS_OVERLAPPEDWINDOW,	// dwStyle
+				w.CW_USEDEFAULT,		// x
+				w.CW_USEDEFAULT,		// y
+				w.CW_USEDEFAULT,		// nWidth
+				w.CW_USEDEFAULT,		// nHeight
+				NULL,					// hWndParent
+				NULL,					// hMenu
+				hinst,					// hInstance
+				NULL );					// lpParam
+				
+		cmp(eax,0);
+		jne _windowok;
+		fatalError( "Unable to create window");
+		exit kHelp;
+		
+	_windowok:
+		
+		w.LoadAccelerators (hinst, val IDR_ACCEL);
+		mov (eax, haccel);
+
+		
+		w.ShowWindow( hwnd, w.SW_SHOWNORMAL );
+		w.UpdateWindow( hwnd );
+	
+		FOREVER
+				w.GetMessage(msg,NULL,0,0);
+				breakif( ! eax );
+				
+				continueif (panel_ismsg(msg));
+				continueif (w.TranslateAccelerator (hwnd, haccel, msg));
+				
+				w.TranslateMessage( msg );
+				w.DispatchMessage( msg );	
+		ENDFOR;
+		
+		mov( msg.wParam, eax );
+	_exit:
+	
+	end kHelp;
+	

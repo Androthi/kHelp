@@ -1,0 +1,149 @@
+unit kHelp_bar_unit;
+
+	#includeonce ("src\kHelp.hhf")
+
+	?@nodisplay := true;
+	?@noalignstack := true;
+
+	storage
+		hbar	:dword;		// handle of split bar
+		oldhbar	:dword;		// original handle after subclass
+		bar_pos	:dword;		// current left offset of bar
+		hsplit	:dword;		// handle of split cursor
+
+	const
+		barMin_c	:= 20;
+		barMax_c	:= 20;
+		barwt_c		:= 3;
+
+	procedure Proc_SplitBar (lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+	
+		storage
+			split	:boolean;
+			
+		var
+			pt		:w.POINT;
+			rect	:w.RECT;
+			max		:int32;
+			min		:int32;
+			
+	begin Proc_SplitBar;
+		mov (umsg, eax);
+		
+		if (eax = w.WM_MOUSEMOVE) then
+			w.SetCursor (hsplit);
+			if (split) then
+				w.GetCursorPos (pt);
+				w.ScreenToClient (hwnd, pt);
+				w.GetClientRect (hwnd, rect);
+				add (panelht_c, rect.top);
+				sub (statusht_c, rect.bottom);
+
+				// check limits
+				mov (rect.right, eax);
+				sub (rect.left, eax);
+				sub (barMax_c, eax);
+				mov (eax, max);
+				mov (barMin_c, eax);
+				mov (eax, min);
+				
+				mov (pt.x, eax);
+				if ( eax > max) then
+					mov (max, eax);
+				elseif ( eax < min) then
+					mov (min, eax);
+				endif;
+				
+				mov (eax, bar_pos);
+				mov (rect.bottom, ecx);
+				sub (rect.top, ecx);
+				w.MoveWindow (hwin, eax, rect.top, barwt_c, ecx, true);
+			endif;
+
+		elseif (eax = w.WM_LBUTTONDOWN) then
+			w.SetCapture (hwin);
+			w.SetCursor (hsplit);
+			mov (true, split);
+
+		elseif (eax = w.WM_LBUTTONUP) then
+			w.ReleaseCapture();
+			mov (false, split);
+			w.SendMessage (hwnd, w.WM_SIZE, 0, 0);
+			w.UpdateWindow(hwin);
+		
+		elseif (eax = w.WM_LBUTTONDBLCLK) then
+			
+		else
+			w.CallWindowProc (oldhbar, hwin, umsg, wparam, lparam);
+			exit Proc_SplitBar;
+		endif;
+		
+		xor (eax, eax);
+	end Proc_SplitBar;
+	
+	
+	procedure bar_setup;
+		var
+			rect	:w.RECT;
+			
+	begin bar_setup;
+		w.CreateWindowEx (NULL, "STATIC", NULL, w.WS_CHILD | w.SS_GRAYRECT | w.SS_NOTIFY,
+						0, 0, 0, 0, hwnd, ID_BAR, hinst, NULL);
+		mov (eax, hbar);
+
+		if (! settings.readUns ("kHelp Settings", "vBar" )) then
+			w.GetClientRect (hwnd, rect);
+			mov (rect.right, eax);
+			shr (2, eax);
+		endif;
+		mov (eax, bar_pos);
+		
+		w.LoadCursor (hinst, val ID_SPLITCUR);
+		mov (eax, hsplit);
+		
+		w.SetWindowLong (hbar, w.GWL_WNDPROC, &Proc_SplitBar);
+		mov (eax, oldhbar);
+	end bar_setup;
+
+	procedure bar_savepos;
+		var
+			rect	:w.RECT;
+			pt		:w.POINT;
+			
+	begin bar_savepos;
+		w.GetWindowRect (hbar, rect);
+		move (rect.left, pt.x);
+		move (rect.top, pt.y);
+		w.ScreenToClient (hwnd, pt);
+		mov (pt.x, eax);
+		mov (eax, bar_pos);
+		settings.writeUns ("kHelp Settings", "vBar", eax);
+	end bar_savepos;
+
+	procedure bar_show (state:dword);
+	begin bar_show;
+		w.ShowWindow (hbar, state);
+	end bar_show;
+
+	procedure bar_draw (var rect:w.RECT);
+	begin bar_draw;
+		mov (rect, ecx);
+		add (panelht_c, (type w.RECT[ECX]).top);
+		mov ( (type w.RECT[ECX]).bottom, edx);
+		sub ( (type w.RECT[ECX]).top, edx);		// edx = height
+		w.MoveWindow (hbar, bar_pos, (type w.RECT[ECX]).top, barwt_c, edx, true);
+		// adjust client left
+		mov (bar_pos, eax);
+		add (barwt_c, eax);
+		mov (rect, ecx);
+		add (eax, (type w.RECT[ECX]).left);
+	end bar_draw;
+
+	procedure bar_getpos; @noframe;
+	begin bar_getpos;
+		mov (bar_pos, eax);
+		ret();
+	end bar_getpos;
+
+
+end kHelp_bar_unit;

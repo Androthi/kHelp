@@ -1,0 +1,77 @@
+
+[HPR Settings]
+mainfile=Src\kHelp.hla
+tab=4
+backups=3
+options=00000040
+Project Version=10
+usetemp=false
+useunits=true
+useback=false
+findscope=00000001
+findflags=00000001
+wscan header=src\win_inc.hhf
+
+[HPR Jobs]
+kHelp
+
+[HPR Folders]
+units
+res
+src
+doc
+
+[kHelp]
+console=false
+output=%h\bin\kHelp.exe
+type=modular
+main=kHelp.hla
+
+[kHelp.link]
+-heap:0xF4240,0xF4240
+-stack:0xF4240,0xF4240
+-base:0x4000000
+-entry:HLAMain
+-fixed
+-section:.data,RW
+-section:.text,ER
+-align:4096
+-machine:ix86
+
+
+[kHelp.files]
+kHelp.hla,src,hlaprogram
+kHelp.rc,res,resource
+rsrc.hhf,res,include
+kHelp.hhf,src,include
+kHelp_panel.hla,src,hlaunit
+kHelp_content.hla,src,hlaunit
+kHelp_bar.hla,src,hlaunit
+kHelp_status.hla,src,hlaunit
+kHelp_edit.hla,src,hlaunit
+kHelp_doc.khelp,doc,khelp
+win_inc.hhf,src,include
+kHelp_notes.hla,src,hlaunit
+kHelp_about.hla,src,hlaunit
+kHelp_bookmarks.hla,src,hlaunit
+rich_sample.khelp,doc,khelp
+samp.khelp,doc,khelp
+
+[Notes]
+<text>
+
+update khelp docs
+
+test bookmarks
+
+</text>
+
+
+[kHelp.extlinked]
+kernel32.lib
+user32.lib
+hlalib.lib
+hidelib.lib
+COMCTL32.LIB
+COMDLG32.LIB
+GDI32.LIB

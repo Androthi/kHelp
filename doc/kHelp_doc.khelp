@@ -1,0 +1,431 @@
+[kHelp Header]
+Author= Sevag Krikorian
+Version= 0.96.14
+Created= Aug 02, 2006
+Updated= May 18, 2010
+Licence = Public Domain, Open source, distribute with documents. 
+
+[kHelp Contents]
+kHelp
+.Starting kHelp
+Interface
+.Panel
+.Tree View
+.Menus
+.Key-Navigation
+Document Format
+.Header
+.Contents
+.Example
+.Example2
+..TopicC = Hello
+..repeatingText
+..TopicD = Hello
+...repeatingText
+..a bit Rich
+kHelp Updates
+
+
+[kHelp]
+	kHelp is a GUI document viewer based on a simplified ASCII document format.  Any plain-text editor can be used to create the documents.
+kHelp maintains information in a file called kHelp.ini which is created in the directory where kHelp resides.
+
+[kHelp Updates]
+	v0.96.14
+			-recompiled with hidelib 1.70.xx
+			-added document menu with 3 new options:
+			-save a copy
+			-new
+			-import khelp
+			-import text
+			 see Menus section for more details
+			-fixed save as rtf.  better handling of escape characters
+			
+	v0.95	-fixed save-as text
+				now writes all topics
+				now writes them in the correct order
+			-added save-as rtf
+			-added save-as htm
+	v0.92	-source maintainence, document update
+	v0.90	-fix in search
+			-now possible to enter multiple topics with same name
+			-added Keyboard Shortcuts to help menu
+			-now quit kHelp by pressing ESC key
+	v0.81	-it's possible to copy rich-text into kHelp files
+	v0.79	-now displays document information if root node is clicked.
+	v0.78	-maintainence
+	v0.77	-added option to save document in text format
+	v0.75	-maintainence
+	v0.73	-bookmarks/notes are now saved to a separate file called:
+		 <filename>.kinfo in the same directory as the document.
+	v0.72	-recompiled with fixed hidelib.lib (fixed text sections)
+	V0.71	-fixed bookmarks for WinNT
+	v0.70	-added bookmark interface.  Clicking "Bookmark" button adds current
+		 topic to bookmarks menu.  To delete bookmarks, use the "Manage"
+		 menu item in "Bookmarks" menu.  "Manage" opens dialog with list
+		 of bookmarks.  Double clicking on bookmark closes dialog and jumps
+		 to bookmark.  Clicking "OK" saves and closes current list.
+		 Bookmarks are saved directly in the document.
+	v0.65	-added a new panel that shows current topic and annotation status
+		-added Notes button.  Pops up a dialog that allows annotations
+		 to be saved.  1 note per topic.  Notes are saved directly in
+		 the document, no additional files are created.
+		 When a topic is annotated, an icon appears next to the topic bar.
+	v0.62	-fixed ini path - now creates ini file only in kHelp home dir
+	v0.61	-changed menu "Search Scope" to "Options", "Search Scope" is
+		 now under "Options"
+		-added "Top Window" to "Options" - selecting this forces kHelp
+		 window to remain on top of other windows.
+	v0.6	-bug fix on using Open
+		-no longer scrolls to bottom of page on a selection
+		-added new navigation keys:
+		 up arrow	- line up in document view
+		 down arrow	- line down in document view
+		 left arrow	- page up in document view
+		 right arrow	- page down in document view
+		-modified these docs
+	v0.5	1st release	
+
+[Starting kHelp]
+	kHelp can be started several ways:
+	
+kHelp	
+	When launched without Commandline arguments.  kHelp looks for "khelpsrc" in current directory.  If "khelpsrc" does not exist, kHelp starts without an open document.
+	
+kHelp filename[.khelp]
+	When launched with a filename, kHelp starts by loading the document and selecting the 1st topic in the Contents section. The extension is optional, kHelp will attempt to open the file as passed and failing that, with a ".khelp" extension.
+		
+kHelp filename[.khelp] [start]
+	When launched with a filename and start target, kHelp loads the document and attempts to display the topic listed in the 3rd argument.  If there are multiple topics with same name, the first one encountered in the contents tree is selected.
+		
+[Interface]
+	If you're reading this, chances are you pretty much know your way around the kHelp interface.  A short description of the interface features follows.
+	
+[Panel]
+	Contains several buttons for navigation around a document.
+	
+	Home	-returns to the 1st topic of the document.
+	Back	-returns to the previous page visited.
+	Prev	-selects the previous topic in sequence.
+	Next	-selects the next topic in sequence. 
+	Combobox-Type in text to activate the search button.
+		-searched text is saved for this session.
+	Search	-Finds the next instance of selected text.
+		The combo box holds up to 10 references per session.
+		Search scope is determined by menu - either current
+		topic or entire document. 
+	Notes	-Opens a Notes dialog.  Allows one note per topic.
+		 To save a note, click the Save button.
+		 The Delete button erases the note.
+		 Notes are saved in a file called <document>.kinfo
+	Bookmarks- Adds the current topic to the Bookmarks menu.
+		 to remove bookmarks, use the Manage menu under
+		 bookmarks.
+		 Bookmarks are saved in a file called <document>.kinfo
+
+[Tree View]
+Contains at-a-glance view of the entire document.  Select a topic to view by clicking on a selection.  Every topic clicked goes into the topic history which can be navigated using the Panel buttons.
+
+Clicking on the document name (1st node) displays document information.  This item is not entered into the history log.
+
+[Menus]
+	File
+		Open			-open a document
+		Save As...		-allows saving the document in ascii text,
+						 rtf and htm formats.
+						 NOTE: if saving in rtf format and the document
+						 has rtf sections, you'll end up with undesired
+						 results (perhaps rtf source visible in the document!)
+		Quit			-exit kHelp
+	
+	Document
+		This submenu contains some useful features for managing several kHelp documents.
+		
+		Save A Copy...
+			Makes a copy with a new file name of the current document.
+			This is a handy way to sort all the sections in chapter order.
+			
+		New...
+			Creates the basic headers for a new document.
+			
+		Import kHelp...
+			Imports a kHelp document and appends it to the
+			existing document.  All the chapter headers of
+			the imported document are 'bumped' up one level
+			and the document name occupies the root level
+			in the tree view.
+	
+		Import Text...
+			Imports a text document and appends it to the
+			existing document.  The imported document occupies
+			the root level in the tree view.
+		
+	Options
+		Search Scope
+			Topic		-search only through this topic
+			Document	-search entire document
+		Top Window		-kHelp stays on top of other windows
+	Bookmarks
+		Manage			-Opens a dialog to manage bookmarks
+		...			-list of user-selected bookmarks
+	
+	Note on "Save As" feature.  If rich text is used, it is copied as-is without conversion to text format. 
+
+[Key-Navigation]
+	Quick Navigation Keys
+	
+	PG-UP		Prev topic - traverse tree-view up
+	PG_DN		Next topic - traverse tree-view down
+	Back Space	Back to last visited page
+	End		Last topic
+	Home		First topic
+	Insert		Focus on search box
+	F3		Find Next - same as search button
+	Enter		(in search box) = search
+	Arrow Keys	move around in document view
+	 up		up 1 line
+	 down		down 1 line
+	 left		up 1 page
+	 right		down 1 page
+	Space Bar	Activates Notes dialog
+
+[Document Format]
+<text>
+	This section describes the document format recognized by kHelp.
+Documents are basic ASCII text files with "topics" aligned as section headers surrounded by square brackets "[]".
+The document therefore cannot contain a '[' characters as the 1st character on a line unless the section is specifically indicated as a <text> section.
+In a text section, <text> appears as the first word directly under the header, without any leading spaces.  To end a text section, use the characters "</text>" (without the quotes) also left aligned at the beginning of a new line.
+Everything in a <text> section is taken direclty as it appears.
+
+Example:
+[Chapter1]
+	This is text that appears as chapter 1
+	
+
+Example2: formatting with <text> section
+	<text>
+		Note, the <text> and </text> above and below must not have any leading spaces or tabs.
+		They should be touching the left margin of the editor.
+	</text>
+	
+
+For correct formatting, use an ASCII editor with tabs set to 7.  Write each paragraph on a single line so that the edit control may adjust the text according to the user's selected window width.
+Section names are case sensitive.
+
+Using Rich Text:
+	Rich text may be used instead of ascii text.  Use a standard rich-text editor (like WordPad.exe), save the file as rich-text (RTF) format, open it in an ASCII text editor, copy and paste the file directy, including the formatting, into the kHelp document under the desired section.  It may be helpful to use <text> </text> to make sure kHelp doesn't reject the text.
+
+	If Rich text is used, saving the document as text will retain the rich text formatting information.
+		
+Example of rich-text embedded into the kHelp document:
+
+[Rich Text Topic]
+{\rtf1\ansi\ansicpg1252\deff0\deflang1033{\fonttbl{\f0\fnil\fcharset0 Times New Roman;}{\f1\froman\fprq2\fcharset0 Times New Roman;}}
+{\colortbl ;\red255\green0\blue0;}
+\viewkind4\uc1\pard\f0\fs20 Sample rich \cf1\f1 text document\cf0\f0  \b edited \b0 with WordPad\par
+\par
+}
+
+If writing rich text formatting by hand, remember that the characters '{', '}' and '\' are formatting characters used by rich text and you need to place a backslash '\' character in front of these symbols.
+
+</text>
+
+[Header]
+<text>
+	The kHelp header provides a section for document details, author, dates, etc.
+The actual contents of the header right now are up to the writer of the document, however, to maintain compatibility with future versions, the author should follow this suggested format:
+	
+[kHelp Header]
+Author= author
+Version= document version
+Created= date
+Updated= date
+Licence= licence
+
+Apart from these items, anything else may be added without breaking compatiblity.  The maximum length of the header may not exceed 4096 characters.
+</text>
+
+[Contents]
+<text>
+	This section fills out the tree-view exactly in the way specified.  Each item listed in this section must have a corresponding, case sensitive section header elsewhere in the file.  The order in which the headers appear in the file need not follow the order of the contents.
+	To create child topics, include a dot '.' in front of the name.  Each additional dot '.' placed in front of the name creates a deeper nesting of child topics.
+	Topics identifiers and sections may not contain commas and they may not start with symbols ( !,@,#,$,%,^,&,*,(,),~,`{,<,>,?,/,|,\ ), although the symbol limitation is not enforced at this time, using them may break future compatibility.  Apart from these limitations, any ASCII character may be used.
+	
+eg:
+
+[kHelp Contents]
+Root Topic 1
+.Child 1 of Root 1
+.Child 2 of Root 1
+..Child 1 of Child 2
+..Child 2 of Child 2
+...Child 1 of Child 2 of Child 2
+.Child 3 of Root 1
+Root Topic 2
+
+For best results, the 1st topic should be a root topic (no leading dots).  Also, sibling topic nesting must be created sequentially.  Skipping a sibling looses the topics.
+Currently, the maximum number of topics allowed is 4095.
+
+Topics with missing sections will not crash kHelp but they may cause unintended behavior.  To avoid problems, make sure all topics hav a corresponding sections, even if the topic contains no text.
+
+It is possible to have multiple topics with identical names, they will all load up the same section.  To have multipl topics with the same name but pointing to unique sections, use the following syntax to define a topic:
+
+Topic Section = Topic Name
+
+The "Topic Section" refers to the section in the help file, the "Topic Name" is what will be visible in the tree view.
+
+
+
+</text>
+
+[Example]
+<text>
+[kHelp Header]
+Author= Sevag Krikorian
+Version= 0
+Created= Aug 02, 2006
+Updated=
+Licence= None
+
+[kHelp Contents]
+Chapter 1
+.Chapter 1.1
+.Chapter 1.2
+..Chapter 1.2.1
+..Chpater 1.2.2
+.Chapter 1.3
+Chapter 2
+.TopicA = "Same Name"
+.TopicB = "Same Name"
+.Another Way
+.Another Way
+
+[Chapter 1]
+	Chapter 1 text
+	
+[Chapter 1.1]
+	Sub chapter of 1
+	
+[Chapter 1.2]
+	Another sub chapter of 1
+
+[Chapter 1.2.1]
+	Sub sub chapter 1
+	
+[Chapter 1.2.2]
+	Sub sub chapter 2
+
+[Chapter 1.3]
+	Sub chapter of 1
+
+[Chapter 2]
+	Chapter 2 text
+
+[TopicA]
+
+	Have multiple topics with the same name.
+	
+[TopicB]
+
+	This topic shares the name with another topic but it has different text
+
+[Another Way]
+
+	This is a single text section shared by two topics with the same name.
+
+
+
+</text>
+
+[Example2]
+<text>
+This is the according part in the contents of this open kHelp-file to build up this subnode: 
+
+	.Example2
+	..TopicC = Hello
+	..repeatingText
+	..TopicD = Hello
+	...repeatingText
+	..a bit Rich
+
+
+
+And these are the according topic sections:
+
+	[ TopicC ]
+	textextextextextext
+	
+	[ TopicD ]
+	textextextextextext
+	
+	[ repeatingText ]
+	textextextextextext
+	
+	[ a bit Rich ]
+	richtextrichtextrichtext
+
+
+
+
+(note: these examples contain extra spaces to beware conflicts with the original ones)
+</text>
+
+
+[a bit Rich]
+{\rtf1\ansi\ansicpg1252\deff0\deflang1031{\fonttbl{\f0\fnil\fcharset0 Georgia;}{\f1\fnil\fcharset2 Symbol;}}
+{\colortbl ;\red0\green0\blue0;\red192\green0\blue0;\red255\green0\blue0;\red0\green192\blue0;\red0\green255\blue0;\red0\green128\blue128;\red0\green192\blue192;}
+{\*\generator Riched20 5.50.30.2002;}\viewkind4\uc1\pard\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\cf1\i\f0\fs20\par
+\tab\b\fs24 kHelp can be started several ways\b0 :\par
+\i0\fs20\tab\par
+\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li360\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\b kHelp\b0\tab\par
+\pard\fi-360\li360\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\tab When launched without Commandline arguments.  kHelp looks for "\cf2 khelpsrc\cf1" in current directory.  If "khelpsrc" does not exist, kHelp starts without an open document.\par
+\par
+\pard\fi-360\li360\qc\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416 > c:\\path\\\b khelp\b0\par
+\pard\fi-360\li360\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\tab\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li360\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\b kHelp\b0  \cf3 filename\cf1 [\cf4 .khelp\cf1 ]\par
+\pard\fi-360\li360\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\tab When launched with a filename, kHelp starts by loading the document and selecting the 1st topic in the Contents section. The extension is optional, kHelp will attempt to open the file as passed and failing that, with a ".khelp" extension.\par
+\par
+\pard\fi-360\li360\qc\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416 > c:\\path\\\b khelp \cf3 kHelp_doc\cf5\par
+\pard\fi-360\li360\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\cf1\b0\par
+\tab\tab\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li360\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\b kHelp \cf3\b0 filename\cf1 [\cf4 .khelp\cf1 ] [\cf6 start\cf1 ]\par
+\pard\fi-360\li360\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\tab When launched with a filename and start target, kHelp loads the document and attempts to display the topic listed in the 3rd argument.  If there are multiple topics with same name, the first one encountered in the contents tree is selected.\par
+\par
+\pard\fi-360\li360\qc\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416 > c:\\path\\\b khelp \cf3 kHelp_doc\cf1  \cf7 Example2\cf1\b0\par
+\pard\fi-360\li360\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\par
+\par
+\par
+\par
+\pard\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\tab\b Note on rich-text\b0 : \par
+\pard\fi-360\li360\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\tab With this format you can create nicelooking notes and provide your document with more expression. \par
+\pard\fi-360\li360\qc\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\cf3 I\cf1  l\cf5 i\cf1 ke \cf7 i\cf1 t.\par
+\pard\fi-360\li360\tx388\tx776\tx1164\tx1552\tx1940\tx2328\tx2716\tx3104\tx3492\tx3880\tx4268\tx4656\tx5044\tx5432\tx5820\tx6208\tx6596\tx6984\tx7372\tx7760\tx8148\tx8536\tx8924\tx9312\tx9700\tx10088\tx10476\tx10864\tx11252\tx11640\tx12028\tx12416\tab But make sure that every single richtext-note has to be edited extern of the original kHelp-file. This makes it a bit unhandy. \line Also realize that kHelp only exports ascii-format and includes the richtext-formating as well. This makes it uneasy to quickly use the texts in or transfer to other programs.  \line And not to forget - the formatting itself pushes up the size of the help-file.\par
+\par
+\par
+\par
+\par
+\tab [This subnote \i'Example2' \i0 was added to kHelp-doc.khelp by Vera in June '08.]\par
+\par
+\par
+\par
+}
+
+
+[TopicC]
+
+	Do note: >>this page has it's own Text<<
+
+[TopicD]
+
+	... and this pagename is "Hello" as well 
+	
+	- but containing something different
+
+[repeatingText]
+a single text - only written once - 
+
+but it may apear anywhere in the document, 
+.....in any depth you like 
+and as often as you wish  :)  
+

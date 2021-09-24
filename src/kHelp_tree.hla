@@ -1,0 +1,79 @@
+unit kHelp_tree_unit;
+
+	#includeonce ("src\kHelp.hhf")
+
+	?@nodisplay := true;
+	?@noalignstack := true;
+	
+	storage
+		hcontent	:dword;
+		htree		:dword;
+		
+
+	procedure Proc_Contents (lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+		var
+			rect	:w.RECT;
+			
+	begin Proc_Contents;
+		mov (umsg, eax);
+			
+		if (eax = w.WM_COMMAND) then
+			mov(wparam,eax);
+			mov(eax,edx);
+			shr(16,edx);
+			and($0ffff,eax);
+			if (edx = w.BN_CLICKED) then
+				
+			endif;
+
+		elseif (eax = w.WM_INITDIALOG) then
+			mov(hwin,eax);
+			mov(eax,hcontent);
+			w.GetDlgItem (hwin, ID_TREEVIEW);
+			mov (eax, htree);
+			
+		elseif (eax = w.WM_MOUSEACTIVATE) then
+			w.SetForegroundWindow (hwnd);
+			
+		elseif (eax = w.WM_NOTIFY) then
+			
+		elseif (eax = w.WM_SIZE) then
+			w.GetClientRect(hwin, rect);
+			mov	(rect.bottom, eax);
+			sub	(rect.top, eax);
+			w.MoveWindow (htree, 0, rect.top, rect.right, eax, true);
+			w.InvalidateRect (htree, NULL, true);
+			
+		elseif (eax = w.WM_DESTROY) then
+			w.EndDialog (hwin, 0);
+			
+		elseif (eax = w.WM_LBUTTONDOWN) then
+			
+		endif;
+	
+		mov(false,eax);
+
+	end Proc_Contents;
+
+
+	procedure content_setup; @noframe;
+	begin content_setup;
+		w.CreateDialogParam (hinst, val ID_CONTENTS, hwnd,&Proc_Contents, false);
+		ret();
+	end content_setup;
+
+	procedure content_show (state:dword);
+	begin content_show;
+		w.ShowWindow (hcontent, state);
+	end content_show;
+
+	procedure content_draw (var rect:w.RECT);
+	begin content_draw;
+		mov (rect, ecx);
+		mov ( (type w.RECT[ECX]).bottom, edx);
+		sub ( (type w.RECT[ECX]).top, edx);		// edx = height
+		bar_getpos();
+		w.MoveWindow (hcontent, 0, (type w.RECT[ECX]).top, eax, edx, true);
+	end content_draw;
+
+end kHelp_tree_unit;

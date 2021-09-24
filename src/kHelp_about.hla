@@ -1,0 +1,48 @@
+unit kHelp_about_unit;
+
+	#includeonce ("src\kHelp.hhf")
+
+	?@nodisplay := true;
+	?@noalignstack := true;
+
+	readonly
+
+		abouttext	:string :=
+			("kHelp " + version + nl
+			"Author: Sevag Krikorian" nl
+			"sevag.krikorian@gmail.com" nl
+			"https://sites.google.com/view/androth/home" );
+
+
+	procedure Proc_About (lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+	begin Proc_About;
+		if (umsg = w.WM_INITDIALOG) then
+			w.GetDlgItem (hwin, ID_EDT_ABOUT);
+			push (eax);
+			w.SendMessage (eax, w.WM_SETTEXT, 0, abouttext);
+			pop (eax);
+			w.SendMessage (eax, w.EM_SETSEL, -1, 0);
+			w.SetFocus (hwin);
+			
+		elseif (umsg = w.WM_COMMAND) then
+			 if (wparam = w.IDOK) then
+			 	w.SendMessage (hwin, w.WM_CLOSE, NULL, NULL);
+			 endif;
+		elseif (umsg = w.WM_CLOSE) then
+			w.EndDialog (hwin, 0);
+			mov (true, eax);
+		endif;
+		
+		mov	(false, eax);
+	end Proc_About;
+
+
+	procedure about_show; @noframe;
+	begin about_show;
+		w.DialogBoxParam ( hinst, val ID_ABOUT, hwnd, &Proc_About, 0);
+		w.SetFocus (hwnd);
+		ret();
+	end about_show;
+
+
+end kHelp_about_unit;

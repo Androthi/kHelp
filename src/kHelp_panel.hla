@@ -1,0 +1,380 @@
+unit kHelp_panel_unit;
+
+	#includeonce ("src\kHelp.hhf")
+
+	?@nodisplay := true;
+	?@noalignstack := true;
+
+	storage
+		hpanel		:dword;
+		hcombo		:dword;
+		homebtn	:dword;
+		backbtn	:dword;
+		prevbtn	:dword;
+		nextbtn	:dword;
+		searchbtn	:dword;
+		annotatedbtn	:dword;
+		annotatebtn	:dword;
+		bookmarkbtn	:dword;
+		htopic		:dword;
+		hannotatedimg	:dword;
+		navList	:tList;
+		scope_topic	:dword;
+		htopicfont	:dword;
+
+	readonly
+		topicfont	:w.LOGFONT := w.LOGFONT:[16,0,0,0,700,0,0,0,0,1,2,1,34, strToBA ("MS Sans Serif", w.LF_FACESIZE)];
+
+	procedure panel_findfocus; @noframe;
+	begin panel_findfocus;
+		//edit_resetfind (scope_topic);
+		w.GetDlgItem (hpanel, ID_CBO_SEARCH);
+		w.SetFocus (eax);
+		ret();
+	end panel_findfocus;
+
+	procedure panel_end; @noframe;
+	begin panel_end;
+		sList.getTail();
+		if (eax) then
+			content_select ( [eax] );
+		endif;
+		ret();
+	end panel_end;
+
+
+	procedure panel_back; @noframe;
+	begin panel_back;
+		
+		dbg.put ("back");	
+		navList.getTail();
+		if (eax) then
+			mov( eax, ecx );
+			mov( (type listNode_t[eax]).prev, eax );
+			//mov( (type tList.listNode[eax]).value, eax );
+			//mov (seceax.prev, eax);
+			if (eax) then dbg.put ("got prev");
+				mov( eax, edx );
+				navList.remove ([ecx]); dbg.put ("removed tail");
+				mov( (type listNode_t[edx]).value, eax ); dbg.put ("got value");
+				content_select ( [eax] );
+				// content_select adds the value to the backbuffer
+				// we don't want this for the 'Back'button
+				// since 'Back' works one way
+				navList.getTail();
+				if (eax) then
+					navList.remove ([eax]);
+				endif;
+			endif;
+		endif;
+		panel_update();
+		ret();
+	end panel_back;
+
+	procedure panel_home; @noframe;
+	begin panel_home;
+		sList.getHead();
+		if (eax) then
+			mov( seceax.next, eax );
+			if( eax ) then
+				content_select ( [eax] );
+			endif;
+		endif;
+		ret();
+	end panel_home;
+
+	procedure panel_prev; @noframe;
+	begin panel_prev;
+		mov (current, eax);
+		if (eax) then
+			mov (seceax.prev, eax);
+			if (eax) then
+				content_select ( [eax] );
+			else
+				panel_end();
+			endif;
+		else
+			panel_end();
+		endif;
+		ret();
+	end panel_prev;
+
+	procedure panel_next; @noframe;
+	begin panel_next;
+		mov (current, eax);
+		if (eax) then
+			mov (seceax.next, eax);
+			if (eax) then
+				content_select ( [eax] );
+			else
+				panel_home();
+			endif;
+		else
+			panel_home();
+		endif;
+		ret();
+	end panel_next;
+
+	procedure panel_reset; @noframe;
+	begin panel_reset;
+		mov (&navList, eax);
+		if ( (type dword [eax]) <> 0) then
+			navList.destroy();
+			mov (0, (type dword navList[0]));
+		endif;
+		navList.create();
+		mov (0, current);
+		panel_update();
+		ret();
+	end panel_reset;
+
+	procedure panel_search; @noframe;
+	begin panel_search;
+		mov	(w.BN_CLICKED, eax);
+		shl	(16, eax);
+		or	(ID_BTN_SEARCH, eax);
+		w.SendMessage (hpanel, w.WM_COMMAND, eax, 0);
+		w.SetFocus (hwnd);
+		ret();
+	end panel_search;
+
+	procedure Proc_Panel (lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+	begin Proc_Panel;
+		pushabi;
+		mov (umsg, eax);
+			
+		if (eax = w.WM_COMMAND) then
+			mov(wparam,eax);
+			mov(eax,edx);
+			shr(16,edx);
+			and($0ffff,eax);
+			if (edx = w.BN_CLICKED) then
+				
+				if ( eax = ID_BTN_HOME ) then
+					
+					panel_home();
+					
+				elseif (eax = ID_BTN_BACK) then
+					
+					panel_back();
+					
+				elseif (eax = ID_BTN_PREV) then
+					
+					panel_prev();
+					
+				elseif (eax = ID_BTN_NEXT) then
+					
+					panel_next();
+			
+				elseif (eax = ID_BTN_SEARCH) then
+					dbg.put ("search");
+					w.SendMessage (hcombo, w.WM_GETTEXT, @elements (searchbuf)-1, &searchbuf);
+					w.SendMessage (hcombo, w.CB_FINDSTRINGEXACT, -1, &searchbuf);
+					if (eax = w.CB_ERR) then
+						w.SendMessage ( hcombo, w.CB_GETCOUNT, 0, 0);
+						if (eax < 10) then
+							w.SendMessage ( hcombo, w.CB_ADDSTRING, 0, &searchbuf);
+						endif;
+					endif;
+					
+					if (scope_topic) then
+						edit_findtopic (&searchbuf);
+					else
+						//dbg.put ("find doc");
+						//dbg.putz (&searchbuf );
+						edit_finddoc (&searchbuf);
+					endif;
+					w.SetFocus (hcombo);
+
+				elseif (eax = ID_BTN_ANNOTATED || eax = ID_BTN_ANNOTATE) then
+					
+					dbg.put ("annotated!");
+					notes_show();
+					w.SetFocus (hwnd);
+				
+				elseif (eax = w.IDOK) then
+					dbg.put ("IDOK");
+					mov	(w.BN_CLICKED, eax);
+					shl	(16, eax);
+					or	(ID_BTN_SEARCH, eax);
+					w.PostMessage (hwin, w.WM_COMMAND, eax, 0);
+					
+				elseif (eax = ID_BTN_BOOKMARK) then
+					
+					bookmarks_add();
+					w.SetFocus (hwnd);
+	
+				endif;
+				
+				
+			
+			elseif (edx = w.CBN_EDITCHANGE) then
+				w.SendMessage (hcombo, w.WM_GETTEXT, @elements (searchbuf)-1, &searchbuf);
+				zstr.len (&searchbuf);
+				w.EnableWindow (searchbtn, eax);
+//				edit_resetfind (scope_topic);	// reset
+//				w.SetFocus (hcombo);
+				
+				
+			elseif (edx = w.CBN_SELENDOK) then	
+				w.SendMessage (hcombo, w.WM_GETTEXT, @elements (buffer)-1, &searchbuf);
+				zstr.len (&searchbuf);
+				w.EnableWindow (searchbtn, eax);
+				edit_resetfind (scope_topic);	// reset
+//				w.SetFocus (hcombo);
+
+			endif;
+
+		elseif (eax = w.WM_INITDIALOG) then
+	
+			mov(hwin,eax);
+			mov(eax,hpanel);
+			w.GetDlgItem (hwin, ID_CBO_SEARCH);
+			mov (eax, hcombo);
+			w.GetDlgItem (hwin, ID_BTN_HOME);
+			mov (eax, homebtn);
+			w.GetDlgItem (hwin, ID_BTN_BACK);
+			mov (eax, backbtn);
+			w.GetDlgItem (hwin, ID_BTN_PREV);
+			mov (eax, prevbtn);
+			w.GetDlgItem (hwin, ID_BTN_NEXT);
+			mov (eax, nextbtn);
+			w.GetDlgItem (hwin, ID_BTN_SEARCH);
+			mov (eax, searchbtn);
+			w.GetDlgItem (hwin, ID_BTN_ANNOTATED);
+			mov (eax, annotatedbtn);
+			w.GetDlgItem (hwin, ID_BTN_ANNOTATE);
+			mov (eax, annotatebtn);
+			w.GetDlgItem (hwin, ID_BTN_BOOKMARK);
+			mov (eax, bookmarkbtn);
+			w.GetDlgItem (hwin, ID_STATIC);
+			mov (eax, htopic);
+			w.LoadBitmap (hinst, val ID_CLIP);
+			mov (eax, hannotatedimg);
+			w.SendMessage (annotatedbtn, w.BM_SETIMAGE, w.IMAGE_BITMAP, hannotatedimg);
+			w.CreateFontIndirect (&topicfont);
+			mov (eax, htopicfont);
+			w.SendMessage (htopic, w.WM_SETFONT, htopicfont, true);
+			
+		elseif (eax = w.WM_MOUSEACTIVATE) then
+			w.SetForegroundWindow (hwnd);
+			
+		elseif (eax = w.WM_DESTROY) then
+			w.DeleteObject (hannotatedimg);
+			w.DeleteObject (htopicfont);
+			w.EndDialog (hwin, 0);
+		endif;
+	
+		mov(false,eax);
+		popabi;
+
+	end Proc_Panel;
+
+	procedure panel_updatebuffer (var sec:sectionNode_t );
+	begin panel_updatebuffer;
+	USE (ESI, EDI, EAX);
+		mov( sec, eax );
+		navList.appendValue( eax );
+	ENDUSE;
+	end panel_updatebuffer;
+
+
+	procedure panel_setsearchmode; @noframe;
+	begin panel_setsearchmode;
+		w.GetMenu (hwnd);
+		w.GetMenuState (eax, IDM_SCOPE_TOPIC, w.MF_BYCOMMAND);
+		if (eax = w.MF_CHECKED) then
+			mov (true, scope_topic);
+		else
+			mov (false, scope_topic);
+		endif;
+		ret();
+	end panel_setsearchmode;
+	
+
+	procedure panel_setup; @noframe;
+	begin panel_setup;
+	USE (ESI, EDI);
+		w.CreateDialogParam (hinst, val ID_PANEL, hwnd,&Proc_Panel, false);
+		panel_reset();
+		panel_setsearchmode();
+		buf.create($100);
+	ENDUSE;
+	ret();
+	end panel_setup;
+
+	procedure panel_show (state:dword);
+	begin panel_show;
+		w.ShowWindow (hpanel, state);
+	end panel_show;
+
+	procedure panel_draw (var rect:w.RECT);
+	begin panel_draw;
+		mov (rect, eax);
+		w.MoveWindow (hpanel, 0, 0, (type w.RECT[EAX]).right, panelht_c, true);
+	end panel_draw;
+
+	procedure panel_ismsg (var msg:w.MSG);
+	begin panel_ismsg;
+		w.IsDialogMessage (hpanel, msg);
+	end panel_ismsg;
+
+	procedure panel_update; @noframe;
+		
+		procedure disableAll; @noframe;
+		begin disableAll;
+			xor (ebx, ebx);
+			w.EnableWindow (homebtn, ebx);
+			w.EnableWindow (backbtn, ebx);
+			w.EnableWindow (nextbtn, ebx);
+			w.EnableWindow (prevbtn, ebx);
+			w.EnableWindow (annotatebtn, ebx);
+			w.EnableWindow (bookmarkbtn, ebx);			
+			ret();
+		end disableAll;
+
+	begin panel_update;
+		dbg.enters( "panel_update" );
+		USE (ESI, EDI, EBX, EAX);
+		mov (current, ebx);
+		if (ebx) then
+			w.SetWindowText (htopic, secebx.sectionName);
+			mov (secebx.next, eax);
+			w.EnableWindow (nextbtn, eax);
+			mov (secebx.prev, eax);
+			w.EnableWindow (prevbtn, eax);
+			navList.getCount();
+			w.EnableWindow( backbtn, eax );
+			
+			str.put (strbuf, secebx.sectionID, "_kHelpNote");
+			//dbg.put ("section :", strbuf);
+			if (bmnotes.isSectionDefined (strbuf)) then
+				mov (w.SW_SHOW, eax);
+			else
+				mov (w.SW_HIDE, eax);
+			endif;
+			
+			w.ShowWindow (annotatedbtn, eax);
+			
+			mov (&helpfile, eax);
+			if ( (type dword [eax]) <> 0) then
+				if (current <> 0) then
+					mov (w.SW_SHOW, ebx);
+				else
+					mov (w.SW_HIDE, ebx);
+				endif;
+			else
+				mov (w.SW_HIDE, ebx);
+			endif;
+			w.EnableWindow (annotatebtn, ebx);
+			w.EnableWindow (homebtn, ebx);
+			w.EnableWindow (bookmarkbtn, ebx);
+		else
+			disableAll();
+		endif;
+		ENDUSE;
+		dbg.exits( "panel_update" );
+		ret();
+	end panel_update;
+	
+end kHelp_panel_unit;

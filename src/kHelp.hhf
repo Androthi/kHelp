@@ -1,0 +1,226 @@
+	#includeonce ("src\win_inc.hhf")
+	#includeonce ("stdlib.hhf")
+	#includeonce ("hide\hidelib.hhf")
+	#includeonce ("macros\macros.hhf")
+	#includeonce ("hide\dbgwin.hhf")
+
+	const
+		version	:= "0.98.00";
+		
+	#macro fatalError ( _parms_[]): __parms, __counter, __buildstr;
+		?__parms := @elements( _parms_);
+		?__counter := 0;
+		?__buildstr := "str.put ( strbuf, ";
+		#while ( __counter < __parms-1 )
+			?__buildstr += _parms_[__counter]+ ", ";
+			?__counter += 1;
+		#endwhile
+		?__buildstr += _parms_[__counter] + ");";
+		@text (__buildstr);
+		_error ( strbuf );
+	#endmacro
+
+
+	#macro warning ( _parms_[]): __parms, __counter, __buildstr;
+		?__parms := @elements( _parms_);
+		?__counter := 0;
+		?__buildstr := "str.put ( strbuf, ";
+		#while ( __counter < __parms-1 )
+			?__buildstr += _parms_[__counter]+ ", ";
+			?__counter += 1;
+		#endwhile
+		?__buildstr += _parms_[__counter] + ");";
+		@text (__buildstr);
+		_warning ( strbuf );
+	#endmacro
+
+type
+	WinPos	:record
+		x	:dword;
+		y	:dword;
+		ht	:dword;
+		wt	:dword;
+		mx	:dword;
+	endrecord;
+	
+const
+	ID_BAR		:= 2000;
+	ID_SBAR		:= 2001;
+	#includeonce ("res\rsrc.hhf")
+	
+	panelht_c	:= 52;
+	statusht_c	:= 21;
+	minX_c		:= 30;
+	minY_c		:= minX_c;
+	
+	type
+		
+		sectionNode_t:
+			record inherits (baseNode_t)
+				treeNode	:dword;
+				sectionID	:string;
+				sectionName	:string;
+			endrecord;
+		
+		tSectionList	:class inherits( tList );
+		
+			override procedure create;		@external;
+			override method destroy;		@external;
+			method newNode; 				@external;
+			
+			method appendSection( sectionID:string; sectionName:string ); @returns("EAX"); @external;
+			method findSectionName( src:string ); @returns( "EAX" ); @external;
+			method findSectionID( src:string ); @returns( "EAX" ); @external;
+			
+		endclass;
+
+		bm_t:
+			record inherits( baseNode_t );
+				line	:uns32;
+				section	:pointer to sectionNode_t;
+			endrecord;
+		
+		tBookmark:
+			class inherits( tBaseList );
+				
+				override procedure create; @external;
+				method newNode; @external;
+				method appendBM( var section:sectionNode_t; line:uns32 ); @external;
+				method findSectionBM( var section:sectionNode_t ); @returns("EAX"); @external;
+			endclass;
+
+
+	const
+
+		secebx	:text	:= "(type sectionNode_t[ebx])";
+		secedx	:text	:= "(type sectionNode_t[edx])";
+		seceax	:text	:= "(type sectionNode_t[eax])";
+		secedi	:text	:= "(type sectionNode_t[edi])";
+		sececx	:text	:= "(type sectionNode_t[ecx])";
+		secesi	:text	:= "(type sectionNode_t[esi])";
+		
+		bookmarks_menu_start_c	:= 10000;
+
+storage
+	hinst		:dword; @external;
+	hwnd		:dword; @external;
+	settings	:tConfig; @external;
+	bmnotes	:tConfig; @external;
+	helpfile	:tConfig; @external;
+	strbuf		:string; @external;		// 4096 bytes
+	buffer		:char[1024]; @external;		// 1024 bytes
+	searchbuf	:char[256]; @external;
+	fullpathname	:string; @external;
+	filename	:string; @external;
+	bmnotepath	:string; @external;
+	sList		:tSectionList; @external;
+	navList	:tList; @external;
+	current	:pointer to sectionNode_t; @external;
+	buf		:tBuffer; @external;  // scratch buffer
+	htree	:dword; @external;
+	hfont	:dword; @external;
+	logfont	:w.LOGFONT; @external;
+	hedit	:dword; @external;
+
+	procedure panel_setup; @external;
+	procedure panel_show (state:dword); @external;
+	procedure panel_draw (var rect:w.RECT); @external;
+	procedure panel_ismsg (var msg:w.MSG); @returns ("EAX"); @external;
+	procedure panel_update; @external;
+	procedure panel_updatebuffer( var sec:sectionNode_t);  @external;
+	procedure panel_home; @external;
+	procedure panel_end; @external;
+	procedure panel_back; @external;
+	procedure panel_prev; @external;
+	procedure panel_next; @external;
+	procedure panel_reset; @external;
+	procedure panel_setsearchmode; @external;
+	procedure panel_findfocus; @external;
+	procedure panel_search; @external;
+		
+	procedure content_setup; @external;
+	procedure content_show (state:dword); @external;
+	procedure content_draw (var rect:w.RECT); @external;
+	procedure content_load; @external;
+	procedure content_display (var sec:sectionNode_t); @external;
+	procedure content_select ( var sec:sectionNode_t); @external;
+	procedure content_reset; @external;
+	
+	procedure bar_setup; @external;
+	procedure bar_savepos; @external;
+	procedure bar_show (state:dword); @external;
+	procedure bar_draw (var rect:w.RECT); @external;
+	procedure bar_getpos; @returns ("EAX"); @external;
+	
+	procedure status_setup; @external;
+	procedure status_show (state:dword); @external;
+	procedure status_draw (var rect:w.RECT); @external;
+	
+	procedure edit_setup; @external;
+	procedure edit_show (state:dword); @external;
+	procedure edit_draw (var rect:w.RECT); @external;
+	procedure edit_settext (src:string); @external;
+	procedure edit_reset; @external;
+	procedure edit_findtopic (src:dword); @external;
+	procedure edit_finddoc (src:dword); @external;
+	procedure edit_resetfind (scope:dword); @external;
+	procedure edit_linedown; @external;
+	procedure edit_lineup; @external;
+	procedure edit_pageup; @external;
+	procedure edit_pagedown; @external;
+	procedure edit_getfirstline; @external;
+	procedure edit_showline (line:uns32); @external;
+	
+	procedure about_show; @external;
+	
+	procedure notes_show; @external;
+	procedure notes_setup; @external;
+
+	procedure bookmarks_setup; @external;
+	procedure bookmarks_show; @external;
+	procedure bookmarks_add; @external;
+	procedure bookmarks_menu (id:dword); @external;
+	procedure bookmarks_activate( var bm:bm_t ); @external;
+	
+	procedure getNodesIndex (src:dword; dst:string); @external;
+
+
+#macro strToBA( _theStr_, _bufSize_ ): _i_, _ch_;
+ 
+ #if( @length( _theStr_ ) <= _bufSize_ )
+ 
+  ?_i_ := 0;
+  [
+   #for( _ch_ in _theStr_ )
+ 
+    @byte( _ch_ )
+    #if( _i_ < (_bufSize_-1) )
+     ,
+    #endif
+    ?_i_ += 1;
+ 
+   #endfor
+  
+   #while( _i_ < (_bufSize_-1) )
+    0,
+    ?_i_ += 1;
+   #endwhile
+ 
+   #if( @length( _theStr_ ) < _bufSize_ )
+    0
+   #endif
+  ]
+ 
+ #else
+ 
+  #error
+  (
+   "String constant must be less than ",
+   _bufSize_,
+   " chars long"
+  )
+  [ _bufSize_ dup [0]]
+ 
+ #endif
+ 
+#endmacro

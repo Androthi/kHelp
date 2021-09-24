@@ -1,0 +1,26 @@
+[kHelp Header]
+Author= Sevag Krikorian
+Version= 1
+Created= Sep 11, 2007
+Updated= 
+Licence = public domain 
+
+[kHelp Contents]
+Blah
+.rich_page1
+
+
+[Blah]
+
+text text
+
+[rich_page1]
+<text>
+{\rtf1\ansi\ansicpg1252\deff0\deflang1033{\fonttbl{\f0\fnil\fcharset0 Times New Roman;}{\f1\froman\fprq2\fcharset0 Times New Roman;}}
+{\colortbl ;\red255\green0\blue0;}
+\viewkind4\uc1\pard\f0\fs20 Sample rich \cf1\f1 text document\cf0\f0  \b edited \b0 with WordPad\par
+\par
+}
+
+</text>
+

@@ -1,0 +1,419 @@
+unit kHelp_tree_unit;
+
+	#includeonce ("src\kHelp.hhf")
+
+	?@nodisplay := true;
+	?@noalignstack := true;
+	
+	
+	storage
+		hcontent	:dword;
+		htree		:dword;
+		rootItem	:dword;
+		tvi		:w.TV_ITEM;
+		sList		:tSectionList;
+		current	:pointer to sectionNode_t;
+		
+		
+	readonly
+		//tListVMT	:dword; @external;
+		//tBaseListVMT	:dword; @external;
+		tSectionListVMT	:VMT( tSectionList );
+		
+	procedure tSectionList.create; @noframe;
+	begin create;
+	USE (EAX);
+		if (! esi) then
+			mem.zalloc (@size (tSectionList));
+			mov (eax, esi);
+		else
+			mem2.fillMem ([esi], @size(tSectionList), 0);
+		endif;
+		
+		(type tBaseList[esi]).create();	// call subclass
+		
+		move (&tSectionList._VMT_, this._pVMT_);
+	ENDUSE;
+	ret();
+	end create;
+
+	method tSectionList.destroy; @noframe;
+	begin destroy;
+	USE (EAX, EBX);
+		mov (this.head, ebx);
+		while (ebx) do
+			str.free( secebx.sectionID );
+			str.free( secebx.sectionName );
+			mov (secebx.next, ebx);
+		endwhile;
+		super.destroy();
+		//call ( tBaseListVMT [@offset ( tList.destroy)]);
+	ENDUSE;
+	ret();
+	end destroy;
+
+	method tSectionList.newNode; @noframe;
+	begin newNode;
+		mem.zalloc (@size (sectionNode_t));
+		mov (&tSectionList._VMT_,  (type sectionNode_t[eax]).nodeID);
+		ret();
+	end newNode;
+
+	method tSectionList.appendSection( sectionID:string; sectionName:string );
+	begin appendSection;
+	USE( EDX );
+		this.newNode();
+		mov( eax, edx );
+		str.a_cpy( sectionID );
+		mov( eax, secedx.sectionID );
+		if( str.length( sectionName) > 0 ) then
+			str.a_cpy( sectionName );
+		else
+			str.a_cpy( sectionID );
+		endif;
+		mov( eax, secedx.sectionName );
+		this.append( [edx] );
+		mov( edx, eax );
+	ENDUSE;
+	end appendSection;
+
+	method tSectionList.findSectionName( src:string );
+	begin findSectionName;
+	USE( EBX );
+		mov( this.head, ebx );
+		while( ebx ) do
+			breakif( str.ieq( secebx.sectionName, src ));
+			mov( secebx.next, ebx );
+		endwhile;
+		mov( ebx, eax );
+	ENDUSE;
+	end findSectionName;
+
+	method tSectionList.findSectionID( src:string );
+	begin findSectionID;
+	USE( EBX );
+		mov( this.head, ebx );
+		while( ebx ) do
+			breakif( str.ieq( secebx.sectionID, src ));
+			mov( secebx.next, ebx );
+		endwhile;
+		mov( ebx, eax );
+	ENDUSE;
+	end findSectionID;
+	
+	procedure content_reset; @noframe;
+	begin content_reset;
+		dbg.put ("content_reset");
+		
+		mov( &sList, eax );
+		if( (type dword[eax]) != 0 ) then
+			sList.destroy();
+			mov( 0, (type dword sList[0]) );
+		endif;
+		sList.create();
+		
+		w.SendMessage (htree, w.TVM_DELETEITEM, 0, w.TVI_ROOT);
+		dbg.put ("/content_reset");
+		ret();
+	end content_reset;
+
+	procedure Proc_Contents (lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+		var
+			rect	:w.RECT;
+			
+			
+	begin Proc_Contents;
+		mov (umsg, eax);
+
+
+		if (eax = w.WM_NOTIFY) then
+			if (wparam = ID_TREEVIEW) then
+				mov (lparam, edx);
+				mov ((type w.NM_TREEVIEW [edx]).hdr.code, eax);
+				
+				if (eax = w.TVN_SELCHANGEDA) then
+					dbg.put ("selchanged");
+					lea (edx, (type w.NM_TREEVIEW [edx]).itemNew); //dbg.put ("item = ", (type w.TV_ITEM [edx]).hItem );
+					mov (w.TVIF_TEXT| w.TVIF_PARAM, (type w.TV_ITEM [edx]).imask);
+					mov (&buffer, eax);
+					mov (eax, (type w.TV_ITEM[edx]).pszText);
+					mov (@size(buffer), (type w.TV_ITEM [edx]).cchTextMax);
+					push (edx);
+					w.SendMessage (htree, w.TVM_GETITEM, 0, edx);
+					pop (edx);
+					dbg.putz (&buffer);
+					str.cpyz (&buffer, strbuf);
+					mov ( (type w.TV_ITEM[edx]).hItem, eax);
+					mov( (type w.TV_ITEM[edx]).lParam, eax ); //dbg.put ("getting lparam :", eax );
+					content_display( [eax] );
+					//if (eax = rootItem) then
+					//	helpfile.readSection ("kHelp Header", strbuf);
+					//	edit_settext (strbuf);
+					//	panel_update();
+					//else
+					//	mov( (type w.TV_ITEM[edx]).lParam, eax ); //dbg.put ("getting lparam :", eax );
+					//	content_display ([eax]);
+					//endif;
+				endif;
+			endif;
+		
+		elseif (eax = w.WM_WINDOWPOSCHANGED) then
+
+			w.SendMessage (hwnd, w.WM_SIZE, 0, 0);
+
+//		elseif (eax = w.WM_COMMAND) then
+//			mov(wparam,eax);
+//			mov(eax,edx);
+//			shr(16,edx);
+//			and($0ffff,eax);
+//			if (edx = w.BN_CLICKED) then
+//				
+//			endif;
+
+		elseif (eax = w.WM_INITDIALOG) then
+			mov(hwin,eax);
+			mov(eax,hcontent);
+			w.GetDlgItem (hwin, ID_TREEVIEW);
+			mov (eax, htree);
+			
+		elseif (eax = w.WM_MOUSEACTIVATE) then
+			w.SetForegroundWindow (hwnd);
+			
+		elseif (eax = w.WM_SIZE) then
+			w.GetClientRect(hwin, rect);
+			mov	(rect.bottom, eax);
+			sub	(rect.top, eax);
+			w.MoveWindow (htree, 0, rect.top, rect.right, eax, true);
+			w.InvalidateRect (htree, NULL, true);
+			
+		elseif (eax = w.WM_DESTROY) then
+			w.EndDialog (hwin, 0);
+			
+		elseif (eax = w.WM_LBUTTONDOWN) then
+			
+		endif;
+	
+		mov(false,eax);
+
+	end Proc_Contents;
+	
+	procedure addTreeNode( hpar:dword; section:dword );
+		
+		// add a node to the treeview control
+		// hpar = node handle
+		// section = sectionNode_t 
+		
+		var
+			tvins	:w.TV_INSERTSTRUCT;
+		
+	begin addTreeNode;
+	USE (ECX, EDX);
+		
+		//lea( eax, tvins );
+		//mem2.fillMem( [eax], @size(w.TV_INSERTSTRUCT), 0 );
+		
+		mov (hpar, eax);
+		mov (eax, tvins.hParent);
+		//mov (eax, tvins.item.lParam);
+		mov (0, tvins.hInsertAfter);
+		mov (w.TVIF_TEXT | w.TVIF_PARAM ,tvins.item.imask);
+		mov (section, eax);
+		mov( eax, tvins.item.lParam ); //dbg.put ("setting lparam for :", seceax.sectionName, " = ", eax );
+		mov( seceax.sectionName, eax );
+		mov (eax, tvins.item.pszText);
+		mov (0, tvins.item.iImage);
+		mov (0, tvins.item.iSelectedImage);
+		lea (eax, tvins);
+		w.SendMessage (htree, w.TVM_INSERTITEM, 0, eax); //dbg.put ("item = ", eax );
+		//dbg.put ("\addTreenode :", tvins.item.lParam);
+	ENDUSE;
+
+	end addTreeNode;
+
+	
+	procedure addNode (hpar:dword; item:string);
+		
+		// add a node to the treeview control
+		// hpar = node handle
+		// item = string to add
+		
+		var
+			tvins	:w.TV_INSERTSTRUCT;
+			
+	begin addNode;
+	USE (ECX, EDX);
+//		dbg.put ("addnode");
+		mov (hpar, eax);
+//		dbg.put ("parent = ", eax);
+		mov (eax, tvins.hParent);
+		mov (eax, tvins.item.lParam);
+		mov (0, tvins.hInsertAfter);
+		mov (w.TVIF_TEXT | w.TVIF_PARAM | w.TVIF_SELECTEDIMAGE,tvins.item.imask);
+		mov (item, eax);
+		mov (eax, tvins.item.pszText);
+		mov (0, tvins.item.iImage);
+		mov (0, tvins.item.iSelectedImage);
+		lea (eax, tvins);
+		w.SendMessage (htree, w.TVM_INSERTITEM, 0, eax);
+//		dbg.put ("\addnode");
+	ENDUSE;
+	end addNode;
+
+	procedure getNodesIndex (src:dword; dst:string);
+		var
+			count	:uns32;
+			
+	begin getNodesIndex;
+		USE( ESI );
+		mov (0, count);
+		mov( src, esi );
+		dec (esi);
+		forever
+			inc (esi);
+			breakif ( (type byte[esi]) <> '.');
+			inc (count);
+		endfor;
+		str.delete ( (type string src), 0, count);
+		//dbg.put ("scan node = ", src );
+		mov( src, esi );
+		if( scan.findc( '=' ) ) then
+			scan.extract( dst );
+			mov( edi, esi );
+			inc( esi );
+			scan.skipws();
+			scan.findEOLN();
+			scan.extract( src );
+		else
+			//dbg.put (" no equal");
+			str.cpy( src, dst );
+		endif;
+		str.trim( (type string src) );
+		str.trim( dst );
+		mov (count, edx);
+		ENDUSE;
+	end getNodesIndex;
+
+
+	procedure content_load;
+		
+		// load the [Contents] section and fill tree view
+		// with proper topic nesting.
+		
+		var
+			count	:uns32;
+			nodes	:dword[4096];	// if this becomes inadequate, use tBuffer
+			sbuf	:string;
+			
+			
+	begin content_load;
+		dbg.enters ("content_load");
+		//dbg.separator;
+		
+		mov( str.talloc( 1024 ), sbuf );
+		sList.appendSection( "kHelp Header", filename );
+		mov( eax, edx );
+		addTreeNode( 0, eax );
+		mov( eax, nodes[0]);
+		mov( eax, secedx.treeNode );
+		mov( eax, rootItem );
+		
+		helpfile.getItemCount ("kHelp Contents");
+		mov (eax, count);
+		xor (ecx, ecx);
+		lea (ebx, nodes);
+		while (ecx < count) do
+			helpfile.readItem ("kHelp Contents", ecx, strbuf);
+			getNodesIndex ( strbuf, sbuf );
+			//dbg.put ("NODE: ", sbuf, stdio.tab, strbuf);
+			
+			sList.appendSection( sbuf, strbuf );
+			mov( eax, edi );
+			addTreeNode( nodes[edx*4], edi );
+			mov( eax, secedi.treeNode );
+			
+			inc (edx);
+			mov (eax, nodes[edx*4]);
+			
+			inc (ecx);
+		endwhile;
+		//dbg.separator;
+		w.SendMessage (htree, w.TVM_EXPAND, w.TVE_EXPAND, nodes[0]);
+		
+//		// test code
+//		sList.getHead();
+//		mov( eax, ebx );
+//		while( ebx ) do
+//			dbg.put (">", secebx.sectionID, " : ", secebx.sectionName );
+//			mov( secebx.next, ebx );			
+//		endwhile;
+		
+		dbg.exits ("content_load");
+	end content_load;
+
+	procedure content_display (var sec:sectionNode_t);
+	
+		// show target in src
+		// if there is no target specified, show 1st topic.
+		// if update is true, update backbuffer
+		
+	begin content_display;
+	USE (ESI, EDI, EAX);
+		dbg.put ("content_display");
+	
+		mov( sec, eax ); //dbg.put ("eax = ", eax );
+		dbg.put ("  ID >> ", seceax.sectionID, "  NAME >>", seceax.sectionName );
+		mov( eax, current );
+		
+		str.cpy( seceax.sectionID, strbuf );
+		helpfile.a_readSection (strbuf);
+		//dbg.put("*******");
+		if (eax) then
+			mov (eax, esi);
+			edit_settext (esi);
+			str.free (esi);
+		else
+			//dbg.put ("no content");
+			edit_settext ("");
+		endif;
+		panel_updatebuffer( sec );
+		panel_update();				// update the button panel
+		dbg.put( "/content_display" );
+
+	ENDUSE;
+	end content_display;
+
+	procedure content_setup; @noframe;
+	begin content_setup;
+		content_reset();
+		w.CreateDialogParam (hinst, val ID_CONTENTS, hwnd,&Proc_Contents, false);
+		ret();
+	end content_setup;
+
+	procedure content_show (state:dword);
+	begin content_show;
+		w.ShowWindow (hcontent, state);
+	end content_show;
+
+	procedure content_draw (var rect:w.RECT);
+	begin content_draw;
+		mov (rect, ecx);
+		mov ( (type w.RECT[ECX]).bottom, edx);
+		sub ( (type w.RECT[ECX]).top, edx);		// edx = height
+		bar_getpos();
+		w.MoveWindow (hcontent, 0, (type w.RECT[ECX]).top, eax, edx, true);
+	end content_draw;
+
+	procedure content_select ( var sec:sectionNode_t );
+	begin content_select;
+	USE( EDI, EAX );
+		dbg.enters ("content_select");
+		mov( sec, edi );
+		mov( secedi.treeNode, edi );  //dbg.put ("got tree node");
+		w.SendMessage (htree, w.TVM_SELECTITEM, w.TVGN_CARET, edi);
+		w.SendMessage (htree, w.WM_SETFOCUS, 0, 0);
+		w.SetFocus (hwnd);
+		dbg.exits ("content_select");
+	ENDUSE;
+	end content_select;
+
+end kHelp_tree_unit;

@@ -1,0 +1,355 @@
+unit kHelp_bookmarks_unit;
+
+	#includeonce ("src\kHelp.hhf")
+
+	?@nodisplay := true;
+	?@noalignstack := true;
+
+	const
+		delims		:cset	:= {','};
+	
+	readonly
+		tBookmarkVMT: VMT( tBookmark );
+
+	static
+		bm_str	:str.strvar( 300 );
+		
+
+	storage
+		buf			:tBuffer;
+		bookmark_menu	:dword;
+		bookmark_list	:dword;
+		okbtn		:dword;
+		deletebtn	:dword;
+		bmkcount	:uns32;
+		bmList		:tBookmark;
+		
+		
+	procedure tBookmark.create; @noframe;
+	begin create;
+	USE (EAX);
+		if (! esi) then
+			mem.zalloc (@size (tBookmark));
+			mov (eax, esi);
+		else
+			mem2.fillMem ([esi], @size(tBookmark), 0);
+		endif;
+		
+		(type tBaseList[esi]).create();	// call subclass
+		
+		move (&tBookmark._VMT_, this._pVMT_);
+	ENDUSE;
+	ret();
+	end create;
+	
+	method tBookmark.newNode; @noframe;
+	begin newNode;
+		mem.zalloc (@size (bm_t));
+		mov (&tBookmark._VMT_,  (type bm_t[eax]).nodeID);
+		ret();
+	end newNode;
+
+	method tBookmark.appendBM( var section:sectionNode_t; line:uns32 );
+	begin appendBM;
+	USE( EDX );
+		this.newNode();
+		mov( eax, edx );
+		mov( section, eax );
+		mov( eax, (type bm_t[edx]).section );
+		mov( line, eax );
+		mov( eax, (type bm_t[edx]).line );
+		this.append( [edx] );
+		mov( edx, eax );
+	ENDUSE;
+	end appendBM;
+
+	method tBookmark.findSectionBM( var section:sectionNode_t );
+	begin findSectionBM;
+	USE( EBX );
+		mov( this.head, ebx );
+		while( ebx ) do
+			mov( (type bm_t[ebx]).section, eax );
+			breakif( eax = section );
+			mov( (type bm_t[ebx]).next, ebx );
+		endwhile;
+		mov( ebx, eax );
+	ENDUSE;
+	end findSectionBM;
+
+
+	procedure bookmarks_activate ( var bm:bm_t );
+	begin bookmarks_activate;
+		dbg.put ("activate" );
+		mov( bm, eax );
+		content_select( (type bm_t[eax]).section );
+		edit_showline ( (type bm_t[eax]).line);
+	end bookmarks_activate;
+
+	procedure bookmarks_update;
+		// rebuild bookmark menu
+		var
+			count	:uns32;
+			s		:string;
+			mitem	:w.MENUITEMINFO;
+			
+		static
+			bmstr	:zstring := "Manage Bookmarks   Ctrl+B";
+			
+
+	begin bookmarks_update;
+	
+		dbg.put ("bookmarks_update");
+		mov (str.talloc (256), s);
+	
+		USE (EBX, ESI, EDI);
+			lea( eax, mitem );
+			mem2.fillMem( [eax], @size( w.MENUITEMINFO ), 0 );
+
+			w.DestroyMenu (bookmark_menu);
+			w.CreatePopupMenu();
+			mov (eax, bookmark_menu);
+
+			mov( @size(w.MENUITEMINFO), mitem.cbSize );
+			mov( w.MIIM_DATA | w.MIIM_ID | w.MIIM_TYPE, mitem.fMask );
+			
+			mov( w.MFT_STRING, mitem.fType );
+			mov( bmstr, eax );
+			mov( eax, mitem.dwTypeData );
+			zstr.len( eax );
+			mov( eax, mitem.cch );
+			mov( IDM_BOOKMARKS_MANAGE, mitem.wID );
+			w.InsertMenuItem( bookmark_menu, 0, true, mitem );
+			mov( w.MFT_SEPARATOR, mitem.fType );
+			w.InsertMenuItem( bookmark_menu, 1, true, mitem );
+			mov( w.MFT_STRING, mitem.fType );
+
+			if( bmList.getHead()) then
+				mov( eax, ebx );
+				mov( 1, ecx );
+				mov( 2, edx );
+				
+				while( ebx ) do
+					
+					mov( ecx, eax );
+					add( bookmarks_menu_start_c, eax );
+					mov( eax, mitem.wID );
+					
+					mov( (type bm_t[ebx]).section, eax );
+					mov( seceax.sectionName, eax );
+					mov( eax, mitem.dwTypeData );
+					mov( (type str.strRec[eax]).length, eax );
+					mov( eax, mitem.cch );
+					mov( ebx, mitem.dwItemData );
+					
+					USE( ECX,EDX );
+						w.InsertMenuItem( bookmark_menu, edx, true, mitem );
+					ENDUSE;
+					
+					inc( ecx );
+					inc( edx );
+					mov( (type bm_t[ebx]).next, ebx );
+				endwhile;
+			endif;
+			w.GetMenu (hwnd);
+			w.ModifyMenu (eax, 3, w.MF_POPUP | w.MF_BYPOSITION, bookmark_menu, "Bookmarks");
+			w.DrawMenuBar (hwnd);		
+		ENDUSE;
+		dbg.put ("/bookmarks_update");
+	end bookmarks_update;
+
+	procedure bookmarks_menu (id:dword);
+	
+		var
+			mitem	:w.MENUITEMINFO;
+
+	begin bookmarks_menu;
+	USE (ECX, EAX);
+		dbg.put ("bookmarks_menu");
+		lea( eax, mitem );
+		mem2.fillMem( [eax], @size(w.MENUITEMINFO), 0 );
+
+		mov( @size(w.MENUITEMINFO), mitem.cbSize );
+		mov( w.MIIM_DATA, mitem.fMask );
+		mov( id, eax );
+		mov( eax, mitem.wID );
+		w.GetMenuItemInfo( bookmark_menu, id, false, mitem );
+		mov( mitem.dwItemData, eax ); //dbg.put ("data = ", eax );
+		if( eax ) then
+			bookmarks_activate( [eax] );
+		endif;
+		dbg.put ("/bookmarks_menu");
+	ENDUSE;
+	end bookmarks_menu;
+
+
+	procedure bookmarks_setup;
+	
+		var
+			count		:uns32;
+			line		:uns32;
+	
+	begin bookmarks_setup;
+		
+		dbg.enters( "bookmarks_setup" );
+		
+		w.GetMenu (hwnd);
+		w.GetSubMenu (eax, 2);
+		mov (eax, bookmark_menu);
+		bmList.create();
+			
+		if( bmnotes.getItemCount ("kHelp Bookmarks")) then
+			
+			dbg.put("have bookmarks :", eax);
+			mov (eax, count);
+			mov (1, ecx);
+			buf.erase();
+			buf.setDelimiters (delims);
+
+			while (ecx <= count) do
+				str.put (strbuf, (type uns32 ecx));
+				bmnotes.readBufString ("kHelp Bookmarks", strbuf, buf);
+				buf.getToken( bm_str );
+				buf.getToken( strbuf );
+				conv.strTou32 (strbuf, 0);
+				mov( eax, line );
+				sList.findSectionID( bm_str );
+				bmList.appendBM( [eax], line );
+				inc (ecx);
+			endwhile;
+		endif;
+		bookmarks_update();
+		dbg.exits( "bookmarks_setup" );
+	end bookmarks_setup;
+
+	procedure bookmarks_write; @noframe;
+	begin bookmarks_write;
+	USE( EBX, ESI, EDI, ECX );
+		bmnotes.deleteSection ("kHelp Bookmarks");
+		bmList.getHead();
+		mov( eax, ebx );
+		xor( ecx, ecx );
+		while( ebx ) do
+			inc( ecx );
+			mov( (type bm_t[ebx]).section, esi );
+			mov( (type bm_t[ebx]).line, edi );
+			str.put( strbuf, secesi.sectionID, ',', (type uns32 edi) );
+			str.put( bm_str, (type uns32 ecx ) );
+			bmnotes.writeString( "kHelp Bookmarks", bm_str, strbuf );
+			mov( (type bm_t[ebx]).next, ebx );
+		endwhile;
+		bmnotes.write (bmnotepath);
+	ENDUSE;	
+	ret();
+	end bookmarks_write;
+
+
+	procedure bookmarks_add; @noframe;
+	begin bookmarks_add;
+	USE (ESI, EDI);
+		cmp( current, 0 );
+		je done;
+		if( bmList.findSectionBM( current ) ) then
+			mov( eax, esi );
+			edit_getfirstline();
+			mov( eax, (type bm_t[esi]).line );
+		else
+			edit_getfirstline();
+			bmList.appendBM( current, eax );
+			
+		endif;
+		bookmarks_update();
+		bookmarks_write();
+		mov (current, eax);
+		
+		done:
+	ENDUSE;
+	ret();
+	end bookmarks_add;
+
+	procedure Proc_Bookmarks (lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+
+	
+	begin Proc_Bookmarks;
+		if (umsg = w.WM_INITDIALOG) then
+			
+			w.GetDlgItem (hwin, ID_BOOKMARKS_LST);
+			mov (eax, bookmark_list);
+			w.GetDlgItem (hwin, 1);
+			mov (eax, okbtn);
+			w.GetDlgItem (hwin, ID_BOOKMARK_BTNDELETE);
+			mov (eax, deletebtn);
+			USE (ESI, EDI, EBX);
+				
+				if( bmList.count > 0 ) then
+				
+					w.EnableWindow (okbtn, true);
+					w.EnableWindow (deletebtn, true);
+
+					bmList.getHead();
+					mov( eax, ebx );
+					while( ebx ) do
+						mov( (type bm_t[ebx]).section, eax );
+						w.SendMessage (bookmark_list, w.LB_ADDSTRING, 0, seceax.sectionName);
+						w.SendMessage (bookmark_list, w.LB_SETITEMDATA, EAX, EBX);
+						mov( (type bm_t[ebx]).next, ebx );
+					endwhile;
+				endif;
+					w.SendMessage (bookmark_list, w.LB_SETCURSEL, 0, 0);
+			ENDUSE;
+			
+		elseif (umsg = w.WM_COMMAND) then
+ 			
+ 			mov (wparam, eax);
+			mov (eax, ecx);
+			shr (16, ecx);
+			and ($0ffff,eax);
+			if (ecx = w.BN_CLICKED) then
+				
+				if (eax = w.IDCANCEL) then
+					w.SendMessage (hwin, w.WM_CLOSE, 0, 0);
+					
+				elseif (eax = w.IDOK) then
+					w.SendMessage (bookmark_list, w.LB_GETCURSEL, 0, 0);
+					w.SendMessage (bookmark_list, w.LB_GETITEMDATA, eax, 0);
+					bookmarks_activate( [eax] );
+					w.SendMessage (hwin, w.WM_CLOSE, 0, 0);
+						
+				elseif (eax = ID_BOOKMARK_BTNDELETE) then
+					USE( ESI, EDI );
+						w.SendMessage (bookmark_list, w.LB_GETCURSEL, 0, 0);
+						push( eax );
+						w.SendMessage (bookmark_list, w.LB_GETITEMDATA, eax, 0);
+						bmList.remove( [eax] );
+						pop( eax );
+						w.SendMessage (bookmark_list, w.LB_DELETESTRING, eax, 0);
+						w.SendMessage (bookmark_list, w.LB_SETCURSEL, 0, 0);
+						bookmarks_update();
+					ENDUSE;
+				endif;
+
+			elseif (ecx = w.LBN_DBLCLK) then
+				// treat as goto bookmark
+				w.SendMessage (bookmark_list, w.LB_GETCURSEL, 0, 0);
+				w.SendMessage (bookmark_list, w.LB_GETITEMDATA, eax, 0);
+				bookmarks_activate( [eax] );
+				w.SendMessage (hwin, w.WM_CLOSE, 0, 0);
+			endif;
+			
+		elseif (umsg = w.WM_CLOSE) then
+			bookmarks_write();
+			w.EndDialog (hwin, 0);
+			mov (true, eax);
+		endif;
+		
+		mov	(false, eax);
+
+	end Proc_Bookmarks;
+
+	procedure bookmarks_show; @noframe;
+	begin bookmarks_show;
+		w.DialogBoxParam (hinst, val ID_BOOKMARKS, hwnd, &Proc_Bookmarks, 0); 
+		ret();
+	end bookmarks_show;
+
+
+end kHelp_bookmarks_unit;

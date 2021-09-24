@@ -1,0 +1,172 @@
+unit kHelp_notes_unit;
+
+	#includeonce ("src\kHelp.hhf")
+
+	?@nodisplay := true;
+	?@noalignstack := true;
+
+	storage
+		hnotesedt	:dword;
+		savebtn	:dword;
+		copybtn	:dword;
+		pastebtn	:dword;
+		deletebtn	:dword;
+		startpos	:dword;
+		edtsize	:dword;
+		
+	procedure enableButtons (state:dword);
+		
+		procedure changeAll; @noframe;
+		begin changeAll;
+			w.EnableWindow (savebtn, ebx);
+			w.EnableWindow (deletebtn, ebx);
+			ret();
+		end changeAll;
+
+		
+	begin enableButtons;
+	USE (EBX);
+		mov (state, eax);
+		switch (eax);
+		
+		case (0)
+			// disable all
+			xor (ebx, ebx);
+			changeAll();
+		
+		case (1)
+			// enable all
+			or (1, ebx);
+			changeAll();
+		
+		case (2)
+		
+			w.EnableWindow (savebtn, true);
+		
+		endswitch;
+	ENDUSE;
+	end enableButtons;
+
+
+	procedure Proc_Notes (lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+	begin Proc_Notes;
+		
+		if (umsg = w.WM_INITDIALOG) then
+			USE (ESI, EDI);
+			w.GetDlgItem (hwin, ID_EDT_NOTES);
+			mov (eax, hnotesedt);
+			w.GetDlgItem (hwin, ID_BTN_SAVENOTE);
+			mov (eax, savebtn);
+			w.GetDlgItem (hwin, ID_BTN_PASTENOTE);
+			mov (eax, pastebtn);
+			w.GetDlgItem (hwin, ID_BTN_COPYNOTE);
+			mov (eax, copybtn);
+			w.GetDlgItem (hwin, ID_BTN_DELETENOTE);
+			mov (eax, deletebtn);
+			mov (current, eax);
+			str.put (strbuf, (type sectionNode_t[eax]).sectionID, "_kHelpNote");
+			dbg.put("looking for : ", strbuf);
+			if (bmnotes.isSectionDefined (strbuf)) then
+				buf.erase();
+				bmnotes.readSection (strbuf, buf);
+				buf.toString();
+				mov (eax, edi);
+				w.SendMessage (hnotesedt, w.WM_SETTEXT, 0, edi);
+				str.free (edi);
+				enableButtons (1);
+			endif;
+			w.SetFocus (hnotesedt);
+			ENDUSE;
+			
+		elseif (umsg = w.WM_COMMAND) then
+ 			
+ 			USE (ESI, EDI);
+ 			mov (wparam, eax);
+			mov (eax, ecx);
+			shr (16, ecx);
+			and ($0ffff,eax);
+			if (ecx = w.BN_CLICKED) then
+
+				 if (eax = w.IDOK || eax = w.IDCANCEL) then
+				 	w.SendMessage (hwin, w.WM_CLOSE, NULL, NULL);
+			 	
+			 	elseif ( eax = ID_BTN_SAVENOTE) then
+			 		
+			 		w.SendMessage (hnotesedt, w.EM_SETSEL, 0, -1);
+			 		w.SendMessage (hnotesedt, w.EM_GETSEL, 0, &edtsize);
+			 		inc (edtsize);
+			 		buf.erase();
+			 		buf.getBufferPtr();
+			 		w.SendMessage (hnotesedt, w.WM_GETTEXT, edtsize, eax);
+			 		mov (eax, buf.length);
+			 		mov (current, eax);
+			 		str.put (strbuf, (type sectionNode_t[eax]).sectionID, "_kHelpNote");
+
+			 		buf.cursorToBOF();
+			 		buf.insert ("<text>" nl);
+			 		buf.cursorToEOF();
+			 		buf.insert ( nl "</text>" nl);
+			 		
+			 		bmnotes.writeSection (strbuf, buf);
+			 		bmnotes.write (bmnotepath);
+			 		panel_update();
+			 		w.SendMessage (hwin, w.WM_CLOSE, 0, 0);
+			 		
+			 	elseif (eax = ID_BTN_PASTENOTE) then
+			 		w.SendMessage (hnotesedt, w.WM_PASTE, 0, 0);
+			 		enableButtons (1);
+			 		
+			 	elseif (eax = ID_BTN_COPYNOTE) then
+			 		w.SendMessage (hnotesedt, w.EM_GETSEL, &startpos, &edtsize);
+			 		mov (edtsize, eax);
+			 		sub (startpos, eax);
+			 		if (! eax) then
+			 			w.SendMessage (hnotesedt, w.EM_SETSEL, 0, -1);
+			 		endif;
+			 		w.SendMessage (hnotesedt, w.WM_COPY, 0, 0);
+			 		
+			 	elseif (eax = ID_BTN_DELETENOTE) then
+			 		
+			 		mov (current, eax);
+			 		str.put (strbuf, (type sectionNode_t[eax]).sectionID, "_kHelpNote");
+			 		bmnotes.deleteSection (strbuf);
+			 		bmnotes.write (bmnotepath);
+			 		panel_update();
+			 		w.SendMessage (hwin, w.WM_CLOSE, 0, 0);
+				endif;
+			
+			elseif (ecx = w.EN_CHANGE) then
+				
+				enableButtons (1);
+				
+			endif;
+			
+			ENDUSE;
+		
+			
+		elseif (umsg = w.WM_CLOSE) then
+			w.EndDialog (hwin, 0);
+			mov (true, eax);
+		endif;
+		
+		mov	(false, eax);
+
+	end Proc_Notes;
+
+
+	procedure notes_show; @noframe;
+	begin notes_show;
+		if( current > 0 ) then
+			w.DialogBoxParam (hinst, val ID_NOTES, hwnd, &Proc_Notes, NULL);
+		endif; 
+		ret();
+	end notes_show;
+
+	procedure notes_setup; @noframe;
+	begin notes_setup;
+		buf.create ($10000);
+		ret();
+	end notes_setup;
+
+
+end kHelp_notes_unit;

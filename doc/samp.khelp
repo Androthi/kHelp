@@ -1,0 +1,64 @@
+[kHelp Header]
+Author= sample
+Version= n/a
+Created= n/a
+Updated= n/a
+Licence = none 
+
+
+[kHelp Contents]
+One
+.Sub One
+..Sub Sub One
+Two
+.Sub Two
+..Sub Sub Two
+...Sub Sub Sub Two
+Three
+.same0 = Same Topic
+Four
+.same1 = Same Topic
+
+[One]
+
+	topic one
+
+
+[Sub One]
+
+	sub topic one
+
+[Sub Sub One]
+
+	sub sub topic one
+
+[Two]
+
+	topic two
+
+[Sub Two]
+
+	sub topic two
+
+[Sub Sub Two]
+
+	sub sub topic two
+
+[Sub Sub Sub Two]
+
+	sub sub sub topic two
+
+[Three]
+
+	topic three
+	
+[Four]
+	
+[same0]
+
+	Same topic name, in Three
+
+[same1]
+
+	Same topic name, in Four
+

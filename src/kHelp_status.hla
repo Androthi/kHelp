@@ -1,0 +1,31 @@
+unit kHelp_status_unit;
+
+	#includeonce ("src\kHelp.hhf")
+
+	?@nodisplay := true;
+	?@noalignstack := true;
+
+	storage
+		hstatus		:dword;
+		
+	procedure status_setup; @noframe;
+	begin status_setup;
+		w.CreateStatusWindow ( w.WS_CHILD, NULL, hwnd, ID_SBAR);
+		mov (eax, hstatus);
+		ret();
+	end status_setup;
+
+	procedure status_show (state:dword);
+	begin status_show;
+		w.ShowWindow (hstatus, state);
+	end status_show;
+
+	procedure status_draw (var rect:w.RECT);
+	begin status_draw;
+		mov (rect, ecx);
+		sub (statusht_c, (type w.RECT[ECX]).bottom);
+		w.SendMessage (hstatus, w.WM_SIZE, 0, 0);
+	end status_draw;
+
+
+end kHelp_status_unit;
