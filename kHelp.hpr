@@ -56,6 +56,7 @@ kHelp_about.hla,src,hlaunit
 kHelp_bookmarks.hla,src,hlaunit
 rich_sample.khelp,doc,khelp
 samp.khelp,doc,khelp
+README.md,,misc
 
 [Notes]
 <text>
